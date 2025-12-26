@@ -15,13 +15,24 @@ El sistema se ejecuta en bucle (por ejemplo, cada 4 horas)
 ## 2. FASE CUANTITATIVA (ML para una buena base)
 
 Objetivo: 
-Establecer una base matemática sólida utilizando ML tradicional para detectar ineficiencias estadísticas que los LLMs suelen pasar por alto.
-Input: Datos estrictamente numéricos (Tensores con indicadores técnicos calculados en la Fase 1, normalizados).
+Establecer una base matemática sólida utilizando ML tradicional Detectar ineficiencias estadísticas en el mercado mediante un modelo de regresión no lineal. El sistema no busca predecir el precio, sino el rendimiento relativo de un activo frente a sus pares.
 
-Modelo: XGBoost Regressor (Predicción de Retorno Relativo).
+Input(X): 
+Para que el modelo entienda el estado actual de la tendencia sin romper las reglas estadísticas, utilizamos técnicas avanzadas de transformación de series temporales.
+Diferenciación Fraccional $d \approx 0.4$: A diferencia de los retornos simples (borran memoria) o los precios brutos (no estacionarios), aplicamos diferenciación fraccional. Esto permite al modelo "ver" la memoria de largo plazo manteniendo la serie matemáticamente estacionaria.
+Indicadores Normalizados: RSI, Volatilidad Relativa y Posición en Bandas de Bollinger entre otros.
+
+Output o Target(Y):
+Entrenamos al modelo para predecir el Retorno Excedente a corto plazo (x ej. 4 horas).
+La lógica que seguimos es que el modelo aprende la función de mapeo Contexto -> Rentabilidad (x.ej Cuando el precio diferenciado está en extremos históricos (Contexto) y el RSI diverge, el Alpha futuro tiende a ser negativo (Reversión a la media))
+
+
+**Modelo**: XGBoost Regressor (Predicción de Retorno Relativo).
 En lugar de intentar predecir el precio absoluto futuro (una serie temporal no estacionaria y ruidosa), utilizamos un enfoque de Cross-Sectional Regression.
 
-El modelo no predice cuánto valdrá Bitcoin, sino cuánto se desviará Bitcoin del promedio del mercado.
+Cross-Sectional Regression:
+En lugar de mirar una sola moneda en el tiempo, el modelo evalúa todos los activos simultáneamente en cada corte temporal.
+Básicamente, el modelo no predice cuánto valdrá Bitcoin, sino cuánto se desviará Bitcoin del promedio del mercado.
 
 Lógica del Alpha (Ranking Relativo): Nuestra necesidad para la optimización de carteras es maximizar la exposición a activos con mayor probabilidad de rendimiento superior. 
 
@@ -34,7 +45,7 @@ Matemática: $R_{btc} (-8\%) - R_{promedio} (-10\%) = \mathbf{+2\%}$.
 
 Este +2% es nuestro Alpha. Aunque perdamos valor nominal, hemos ganado en términos relativos, protegiendo la cartera mejor que el índice. Esto hace que el modelo sea robusto y estacionario, capaz de aprender patrones universales que funcionan tanto en euforia como en pánico:
 
-LO podemos ver claramente que tanto en un bull como bearish run el modelo seguirá aprendiendo y no se confudirá, encontrando patrones relevantes:
+Lo podemos ver claramente que tanto en un bull como bearish run el modelo seguirá aprendiendo y no se confudirá, encontrando patrones relevantes:
 
 Bull Run:
 
@@ -56,12 +67,12 @@ Crash:
 - Ranking: A > B.
 
 
-Output:
+Salidas:
 El modelo genera dos salidas críticas para las siguientes fases:
 
 - Ranking Ordenado: Lista de prioridad (1. SOL, 2. ETH... 8. DOGE) para pasarlo al LLM
 
-- Vector de Views: Un vector numérico con la magnitud exacta del retorno relativo esperado (x ej: SOL: +0.02, BTC: +0.005, DOGE: -0.01). Este dato numérico es para el modelo de Black-Litterman en la Fase 4.
+- Vector de Views: Un vector numérico con la magnitud exacta del retorno relativo esperado (x ej: SOL: +0.02, BTC: +0.005, DOGE: -0.01). Este dato numérico es para el modelo de Black-Litterman en la ultima fase.
 
 3. FASE AGENTES (MoE) - mezcla de cada agente como experto
 Objetivo: Introducir comprensión contextual al sistema. Mientras el ML ve números, los Agentes LLM ven riesgos fundamentales que no aparecen en las gráficas hasta que es tarde.
