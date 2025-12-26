@@ -1,0 +1,20 @@
+[project]
+name = "llquant"
+version = "0.1.0"
+description = "Sistema híbrido de gestión de activos que combina ML para la predicción de Alpha y LLM para la auditoría de riesgo fundamental."
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "numpy>=2.2",
+    "pandas>=2.3",
+    "numba>=0.61",
+    "pyarrow>=22.0",
+    "fastparquet>=2025.12",
+    "pandas-ta>=0.4",
+    "yfinance>=1.0",
+    "requests>=2.32",
+    "websockets>=15.0",
+    "beautifulsoup4>=4.14",
+    "peewee>=3.18",
+]
