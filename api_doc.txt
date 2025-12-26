@@ -1,0 +1,1191 @@
+
+si usas ordenes limites las comisiones son 0.02%
+
+------------
+
+[Skip to main content](https://www.weex.com/api-doc/ai/introduction/Rule#__docusaurus_skipToContent_fallback)
+
+1.  All trading must be conducted through the official WEEX OpenAPI platform using accounts approved for the competition.
+    
+2.  Only the designated trading pairs announced for the competition are permitted for trading. `cmt_btcusdt`, `cmt_ethusdt`, `cmt_solusdt`, `cmt_dogeusdt`, `cmt_xrpusdt`, `cmt_adausdt`, `cmt_bnbusdt`,`cmt_ltcusdt`
+    
+3.  Any trades outside the approved scope will result in immediate disqualification.
+    
+4.  Trading strategies may be fully or semi-automated, but purely manual trading is strictly prohibited.
+    
+5.  The following actions are prohibited and will lead to disqualification:
+    
+
+*   Profiting from high-frequency or latency arbitrage, wash trading, or market manipulation.
+*   Altering data, falsifying trading records, or fabricating AI logs.
+*   Sharing, borrowing, or transferring API keys or trading accounts.
+*   Engaging in purely manual trading without the use of genuine AI technology.
+
+6.  Any participant found attempting to gain an unfair advantage through deceptive or manipulative means will be disqualified, and their ranking will be voided.
+    
+7.  The organizer reserves the right to implement or adjust risk control measures (including maximum leverage, position limits, order frequency limits, STP, rate limiting, and liquidation protection mechanisms) and may enforce position closures to manage risk or comply with legal and regulatory requirements.
+
+-------------------
+
+[Skip to main content](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#__docusaurus_skipToContent_fallback)
+
+On this page
+
+Welcome to the Arena: The Path to Alpha Awakening[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#welcome-to-the-arena-the-path-to-alpha-awakening "Direct link to Welcome to the Arena: The Path to Alpha Awakening")
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+**AI Wars: WEEX Alpha Awakens – Global AI Trading Hackathon!**
+
+In this ultimate showdown, top developers, quants, and traders from around the world will unleash their algorithms in real-market battles, competing for one of the richest prize pools in AI crypto trading history: **880,000 USD**, including a **Bentley Bentayga S** for the champion.
+
+This guide will walk you through every required step from registration to the official start of the competition.
+
+Follow the path and start your journey:
+
+**Register & Form Your Team → Pass API Testing → Model Tuning → Official Start**
+
+Step 1｜Register, Create & Submit Your BUIDL, and Obtain Your API Key[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#step-1register-create--submit-your-buidl-and-obtain-your-api-key "Direct link to Step 1｜Register, Create & Submit Your BUIDL, and Obtain Your API Key")
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Check the registration tutorial: [https://www.youtube.com/watch?v=yeJaQRN9spA](https://www.youtube.com/watch?v=yeJaQRN9spA)
+
+**Goal:** Complete your official registration, create or join a team (BUIDL), and pass the review to receive your dedicated API key.
+
+**Outcome:** You will obtain exclusive API credentials to connect your system to WEEX — marking your first step into the competition.
+
+### 1.1 Visit the AI Wars: WEEX Alpha Awakens Event Page[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#11-visit-the-ai-wars-weex-alpha-awakens-event-page "Direct link to 1.1 Visit the AI Wars: WEEX Alpha Awakens Event Page")
+
+1.  Visit the event page: [https://www.weex.com/events/ai-trading](https://www.weex.com/events/ai-trading)
+    
+2.  Find the **"Submit BUIDL"** button and click
+
+![img.png](https://www.weex.com/api-doc/assets/images/img-c08e772b4873c916718c8d930d9bf5bb.png)
+
+### 1.2 Find a Team or Build Your Own[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#12-find-a-team-or-build-your-own "Direct link to 1.2 Find a Team or Build Your Own")
+
+A **BUIDL** is the basic participating unit of this competition and represents a team.
+
+Existing BUIDLs represent teams that have already been created. You may join one of these BUIDLs or create your own team from scratch.
+
+![img.png](https://www.weex.com/api-doc/assets/images/img1-f9593022a1d1701509eca6d1af58b319.png)
+
+If you choose to submit your own BUIDL, information should include:
+
+*   Profile: BUIDL name, logo, vision, category, GitHub (optional), and social links
+*   Details: A brief introduction to your BUIDL
+*   Team: Team information. You can also invite or recruit team members to this section.
+*   Contact: Telegram handle and backup contact details
+*   Submission：
+    *   WEEX UID (KYC required)
+    *   IP Address (this IP will be added to the WEEX OpenAPI whitelist to enable successful API calls)
+    *   Preferred programming languages
+    *   Experience with Large Language Models (LLMs), AI-assisted trading, automated trading bots, or other exchanges’ APIs
+    *   Number of orders your strategy will place per day
+
+tip
+
+Solo participation is allowed, but we recommend a 2–5 member cross-functional team (developer + quant researcher + trader).
+
+#### 1: How to Complete KYC and Find Your WEEX UID[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#1-how-to-complete-kyc-and-find-your-weex-uid "Direct link to 1: How to Complete KYC and Find Your WEEX UID")
+
+To register for the WEEX Global AI Trading Hackathon, you’ll need to provide your KYC-verified WEEX UID. Here’s how to find it:
+
+1.  **Register Your Account**
+    
+    Click the [link](https://www.weex.com/)
+     to visit the WEEX official website. Select “Sign Up” in the top right, then register using your email or phone number.
+    
+    **Note:** If you already have an account, click “Log In” in the top-right corner to access your dashboard.
+    
+
+![img.png](https://www.weex.com/api-doc/assets/images/img2-cc6d2aea5f50df9432d13f4354fccbff.png)
+
+2.  **Complete Identity Verification**
+    
+    Click the avatar icon in the top right and select “Verification” to complete your KYC.
+    
+    **Note:** KYC is mandatory — submissions without KYC cannot be approved.
+    
+
+![img.png](https://www.weex.com/api-doc/assets/images/img5-836885e27a1710d0a0afffc8468e41b7.png)
+
+3.  **Find Your UID**
+    
+    Click the avatar icon again, and you will see your UID displayed right below your email.
+    
+
+![img_1.png](https://www.weex.com/api-doc/assets/images/img4-ea2b5e96a2d8bfc18846850f9335abe0.png)
+
+#### Submission Mini Tip 2: How to Find Your IP Address[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#submission-mini-tip-2-how-to-find-your-ip-address "Direct link to Submission Mini Tip 2: How to Find Your IP Address")
+
+**Part 1: The Recommended Method (Cloud Servers)**
+
+For best stability, we strongly recommend using a cloud server with static public IP and supporting **24/7 uninterrupted operation such as:** AWS (Amazon Web Services), Alibaba Cloud, and Tencent Cloud.
+
+**Part 2: The Alternative Method (Local Computer)**
+
+If you choose to run your trading bot from a personal computer or home network, you must confirm that your outbound IP address is static. A changing IP will result in connectivity issues.
+
+You have two main options to ensure a stable outbound IP:
+
+1.  **Use a static IP** provided by your Internet Service Provider (ISP).
+2.  **Use a VPN or Proxy service** with a fixed egress IP (and ensure the VPN/Proxy is **consistently enabled** without switching servers).
+
+**Steps to find your local public IP:**
+
+*   **Turn off all VPNs**, or keep only the single VPN whose IP you plan to whitelist.
+*   Visit [whatismyip.com](http://whatismyip.com/)
+     in your browser.
+*   The page will show your **public IPv4 address**.
+*   Copy this IP and submit it to the whitelist.
+
+warning
+
+**Note:** Most home broadband IPv4 addresses are **dynamic and may change periodically.** It is highly recommended to use a cloud server environment to avoid connection failures during the competition.
+
+### 1.3 Missing Information? We Will Follow Up[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#13-missing-information-we-will-follow-up "Direct link to 1.3 Missing Information? We Will Follow Up")
+
+After you submit your BUIDL, the WEEX team will review your application based on the competition requirements. The review process normally takes **one business day**.
+
+If any information is missing or requires clarification, our team will reach out to you through one of the following channels:
+
+*   DoraHacks messaging system
+*   WEEX official messaging system
+*   Your registered contact information (Telegram, X, etc.)
+
+Please keep your contact details active and accessible.
+
+Once your BUIDL is approved, you will receive your **competition account** and **exclusive API Key**, which will allow you to move on to the next stage: **API testing and model integration.**
+
+| ![img_2.png](https://www.weex.com/api-doc/assets/images/img_2-71304ffbb29dfaa671974f922ba816e3.png) | ![img_3.png](https://www.weex.com/api-doc/assets/images/img_3-61fa86b491e9e40aefbe2d00e31f1968.png) |
+| --- | --- |
+| Under Review | Approved |
+
+### 1.4 Your Starter Kit[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#14-your-starter-kit "Direct link to 1.4 Your Starter Kit")
+
+After your BUIDL passes the review, WEEX will create a dedicated competition account for you and provide the API credentials and testing information required for the next stage. These details will be sent to you via the DoraHacks message system and WEEX Labs official emails.
+
+You will receive:
+
+*   **API Key:** The identifier for your competition account and a required parameter for all API requests.
+*   **Secret Key:** System-generated key used for request signing and security verification.
+*   **Passphrase:** Required to perform API operations.
+*   **API Testing Page Link:** A mini testing environment where you can view the API testing requirements, specifications, and completion criteria.
+
+**With this, your registration is complete and you’re ready for API testing.**
+
+Step 2｜Pass the Gateway: Complete Your API Testing[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#step-2pass-the-gateway-complete-your-api-testing "Direct link to Step 2｜Pass the Gateway: Complete Your API Testing")
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+**Goal:** Ensure that your system can successfully interact with the WEEX API and execute the required test trades.
+
+**Outcome:** You’ll secure official entry qualification, receive initial test funds for debugging, and gain a clear understanding of all pre-competition requirements.
+
+### 2.1 Instructions[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#21-instructions "Direct link to 2.1 Instructions")
+
+*   Please complete all required operations listed on the API Testing page.
+*   Participants who complete and pass the API testing will officially obtain eligibility for the competition.
+*   Participants who fail to complete or pass API testing will be unable to proceed to the model integration and formal competition stages.
+
+After receiving the above information, please keep your API credentials secure and follow the instructions to complete the required tests.
+
+![img_4.png](https://www.weex.com/api-doc/assets/images/img_4-43fadc11502f04768312588272f0d3ce.png)
+
+### 2.2 Connect and Test[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#22-connect-and-test "Direct link to 2.2 Connect and Test")
+
+Participants need to complete a simple API test to qualify for the preliminary round of the hackathon. Please read the WEEX official API documentation carefully, and use the API key we provide to complete the test.
+
+tip
+
+**API-testing: Use the API to call the order placement endpoint and execute a trade for approximately 10 USDT on `cmt_btcusdt`.**
+
+#### Integration Preparation[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#integration-preparation "Direct link to Integration Preparation")
+
+1.  Please read the official WEEX API documentation carefully: [https://www.weex.com/api-doc/ai/intro](https://www.weex.com/api-doc/ai/intro)
+    
+2.  Connect to a cloud server and run the code below. You should receive a response that confirms whether your network connection is working properly.
+    
+
+    curl -s --max-time 10 "https://api-contract.weex.com/capi/v2/market/time"
+
+    {"epoch":"1765423487.896","iso":"2025-12-11T03:24:47.896Z","timestamp":1765423487896}
+
+3.  If your project is developed in **Java or Python**, you can directly use the corresponding code examples provided in the documentation. For other programming languages, please adapt the examples according to the official API documentation to suit your implementation. Sample code documentation: [https://www.weex.com/api-doc/ai/QuickStart/RequestInteraction](https://www.weex.com/api-doc/ai/QuickStart/RequestInteraction)
+    
+4.  The platform provides two types of APIs:
+    
+    *   **Public APIs:** Used to access configuration details, market data, and other public information. No authentication is required.
+    *   **Private APIs:** Used for order management, account operations, and other sensitive actions. Authentication is mandatory.
+
+When calling private APIs, please include the following authentication details in your HTTP request headers:
+
+| Request Header Fields | Information |
+| --- | --- |
+| ACCESS-KEY | A unique identifier for the user account |
+| ACCESS-PASSPHRASE | The password associated with the API Key |
+| ACCESS-TIMESTAMP | A Unix Epoch timestamp in milliseconds. The timestamp is valid for 30 seconds and must match the one used in the signature calculation. |
+| ACCESS-SIGN | The request signature string. You may use the signature generation method provided in the sample code. For the underlying algorithm, refer to the signature documentation: [https://www.weex.com/api-doc/ai/QuickStart/Signature](https://www.weex.com/api-doc/ai/QuickStart/Signature) |
+| Content-Type | Content fixed as application/json. |
+| locale | Language identifier (e.g.,zh-CN,en-US) |
+
+Fill in "[https://api-contract.weex.com](https://api-contract.weex.com/)
+" for BASE\_URL
+
+HTTP status codes:
+
+*   200 Success – Successful response
+*   400 Bad Request – Invalid request format
+*   403 Forbidden – You do not have access to the requested resource
+*   404 Not Found – Request not found
+*   429 Too Many Requests – Request too frequent, please try again later
+*   500 Internal Server Error – We had a problem with our server
+*   521 Web Server is Down – IP not whitelisted
+
+Other error codes：[https://www.weex.com/api-doc/contract/ErrorCodes/ExampleOfErrorCode](https://www.weex.com/api-doc/contract/ErrorCodes/ExampleOfErrorCode)
+
+You can start API testing once the above steps are completed. The following instructions use BTC as the example asset.
+
+#### Check Account Balance[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#check-account-balance "Direct link to Check Account Balance")
+
+1.  Use Account Balance API to request your current account balance
+
+Sample code:
+
+    import timeimport hmacimport hashlibimport base64import requestsapi_key = ""secret_key = ""access_passphrase = ""def generate_signature_get(secret_key, timestamp, method, request_path, query_string):  message = timestamp + method.upper() + request_path + query_string  signature = hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).digest()  return base64.b64encode(signature).decode()def send_request_get(api_key, secret_key, access_passphrase, method, request_path, query_string):  timestamp = str(int(time.time() * 1000))  signature = generate_signature_get(secret_key, timestamp, method, request_path, query_string)  headers = {        "ACCESS-KEY": api_key,        "ACCESS-SIGN": signature,        "ACCESS-TIMESTAMP": timestamp,        "ACCESS-PASSPHRASE": access_passphrase,        "Content-Type": "application/json",        "locale": "en-US"  }  url = "https://api-contract.weex.com/"  # Please replace with the actual API address  if method == "GET":    response = requests.get(url + request_path+query_string, headers=headers)  return responsedef assets():    request_path = "/capi/v2/account/assets"    query_string = ""    response = send_request_get(api_key, secret_key, access_passphrase, "GET", request_path, query_string)    print(response.status_code)    print(response.text)if __name__ == '__main__':    assets()
+
+2.  Check the response
+
+The example below indicates a successful response
+
+    [  {    "coinName": "USDT",    "available": "5413.06877369",    "equity": "5696.49288823",    "frozen": "81.28240000",    "unrealizePnl": "-34.55300000"  }]
+
+If the request fails, refer to the detailed error codes [here](https://www.weex.com/api-doc/contract/ErrorCodes/ExampleOfErrorCode)
+, or contact technical support in the [TG group](https://t.me/weexaiwars)
+.
+
+#### Get Asset Price[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#get-asset-price "Direct link to Get Asset Price")
+
+1.Use Price Ticker API to request the latest price of `cmt_btcusdt`
+
+Sample code:
+
+    import requestsdef send_request_get( method, request_path, query_string):  url = "https://api-contract.weex.com/"  # Please replace with the actual API address  if method == "GET":    response = requests.get(url + request_path+query_string)  return responsedef ticker():    request_path = "/capi/v2/market/ticker"    query_string = "?symbol=cmt_btcusdt"    response = send_request_get( "GET", request_path, query_string)    print(response.status_code)    print(response.text)if __name__ == '__main__':    ticker()
+
+2.  Check the response
+
+The example below indicates a successful response
+
+    {  "symbol": "cmt_btcusdt",  "last": "90755.3",  "best_ask": "90755.4",  "best_bid": "90755.3",  "high_24h": "91130.0",  "low_24h": "90097.3",  "volume_24h": "2321170547.37995",  "timestamp": "1764482511864",  "priceChangePercent": "0.000474",  "base_volume": "25615.0755",  "markPrice": "90755.2",  "indexPrice": "90797.161"}
+
+If the request fails, refer to the detailed error codes [here](https://www.weex.com/api-doc/contract/ErrorCodes/ExampleOfErrorCode)
+, or contact technical support in the [TG group](https://t.me/weexaiwars)
+.
+
+#### Set Leverage[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#set-leverage "Direct link to Set Leverage")
+
+**Note:** The maximum leverage allowed in this competition is 20x; please follow the rules on WEEX official website.
+
+1.  Use the [Leverage Adjustment API](https://www.weex.com/api-doc/contract/Account_API/AdjustLeverage)
+     to modify the cross-margin leverage for `cmt_btcusdt`
+
+Sample code:
+
+    import timeimport hmacimport hashlibimport base64import requestsimport jsonapi_key = ""secret_key = ""access_passphrase = ""def generate_signature(secret_key, timestamp, method, request_path, query_string, body):  message = timestamp + method.upper() + request_path + query_string + str(body)  signature = hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).digest()  return base64.b64encode(signature).decode()def send_request_post(api_key, secret_key, access_passphrase, method, request_path, query_string, body):  timestamp = str(int(time.time() * 1000))  body = json.dumps(body)  signature = generate_signature(secret_key, timestamp, method, request_path, query_string, body)  headers = {        "ACCESS-KEY": api_key,        "ACCESS-SIGN": signature,        "ACCESS-TIMESTAMP": timestamp,        "ACCESS-PASSPHRASE": access_passphrase,        "Content-Type": "application/json",        "locale": "en-US"  }  url = "https://api-contract.weex.com/"  # Please replace with the actual API address  if method == "POST":    response = requests.post(url + request_path, headers=headers, data=body)  return responsedef leverage():    request_path = "/capi/v2/account/leverage"    body = {"symbol":"cmt_btcusdt","marginMode":1,"longLeverage":"1","shortLeverage":"1"}    query_string = ""    response = send_request_post(api_key, secret_key, access_passphrase, "POST", request_path, query_string, body)    print(response.status_code)    print(response.text)if __name__ == '__main__':    leverage()
+
+You may set other leverage values (up to 20×) in the same way—simply replace the leverage numbers accordingly. **The leverage values are followed by the trading pairs.**
+
+2.Check the response
+
+The example below indicates a successful response
+
+    {    "msg": "success",    "requestTime": 1713339011237,    "code": "200"}
+
+If the request fails, refer to the detailed error codes [here](https://www.weex.com/api-doc/contract/ErrorCodes/ExampleOfErrorCode)
+, or contact technical support in the [TG group](https://t.me/weexaiwars)
+.
+
+#### Place order[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#place-order "Direct link to Place order")
+
+**Note:** Only the following trading pairs are allowed in this competition: `cmt_btcusdt`, `cmt_ethusdt`, `cmt_solusdt`, `cmt_dogeusdt`, `cmt_xrpusdt`, `cmt_adausdt`, `cmt_bnbusdt`, `cmt_ltcusdt`
+
+The maximum leverage is **20x**; please follow the rules on WEEX official website.
+
+1.Use [Get Futures Information](https://www.weex.com/api-doc/contract/Market_API/GetContractInfo)
+ to retrieve contract information for `cmt_btcusdt` (order precision, price precision, max/min order size, etc.)
+
+Sample code:
+
+    import requestsdef send_request_get( method, request_path, query_string):  url = "https://api-contract.weex.com/"  # Please replace with the actual API address  if method == "GET":    response = requests.get(url + request_path+query_string)  return responsedef contracts():    request_path = "/capi/v2/market/contracts"    query_string = "?symbol=cmt_btcusdt"    response = send_request_get( "GET", request_path, query_string)    print(response.status_code)    print(response.text)if __name__ == '__main__':    contracts()
+
+2.Check the response
+
+The example below indicates a successful response
+
+    [  {    "symbol": "cmt_btcusdt",    "underlying_index": "BTC",    "quote_currency": "USDT",    "coin": "USDT",    "contract_val": "0.0001",    "delivery": [      "00:00:00",      "08:00:00",      "16:00:00"    ],    "size_increment": "4",    "tick_size": "1",    "forwardContractFlag": true,    "priceEndStep": 1,    "minLeverage": 1,    "maxLeverage": 400,    "buyLimitPriceRatio": "0.01",    "sellLimitPriceRatio": "0.01",    "makerFeeRate": "0.0002",    "takerFeeRate": "0.0008",    "minOrderSize": "0.0001",    "maxOrderSize": "1200",    "maxPositionSize": "1000000",    "marketOpenLimitSize": "100"  }]
+
+If the request fails, refer to the detailed error codes [here](https://www.weex.com/api-doc/contract/ErrorCodes/ExampleOfErrorCode)
+, or contact technical support in the [TG group](https://t.me/weexaiwars)
+.
+
+**Note:** The API response may show a higher maximum leverage (for example, 400x) available on the platform. However, for this competition, the maximum leverage you are allowed to use is strictly limited to 20x.
+
+3.  Use [Place Order API](https://www.weex.com/api-doc/contract/Transaction_API/PlaceOrder)
+     to open a long position for `cmt_btcusdt` with a limit price of **100000.0** and **0.0001 BTC**, using the contract information from Step 1 (order precision, price precision, and max/min order size) to construct the parameters.
+
+Sample code:
+
+    import timeimport hmacimport hashlibimport base64import requestsimport jsonapi_key = ""secret_key = ""access_passphrase = ""def generate_signature(secret_key, timestamp, method, request_path, query_string, body):  message = timestamp + method.upper() + request_path + query_string + str(body)  signature = hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).digest()  return base64.b64encode(signature).decode()def send_request_post(api_key, secret_key, access_passphrase, method, request_path, query_string, body):  timestamp = str(int(time.time() * 1000))  body = json.dumps(body)  signature = generate_signature(secret_key, timestamp, method, request_path, query_string, body)  headers = {        "ACCESS-KEY": api_key,        "ACCESS-SIGN": signature,        "ACCESS-TIMESTAMP": timestamp,        "ACCESS-PASSPHRASE": access_passphrase,        "Content-Type": "application/json",        "locale": "en-US"  }  url = "https://api-contract.weex.com/"  # Please replace with the actual API address  if method == "POST":    response = requests.post(url + request_path, headers=headers, data=body)  return responsedef placeOrder():    request_path = "/capi/v2/order/placeOrder"    body = {        "symbol": "cmt_btcusdt",        "client_oid": "test",        "size": "0.0001",        "type": "1",        "order_type": "0",        "match_price": "0",        "price": "100000.0"}    query_string = ""    response = send_request_post(api_key, secret_key, access_passphrase, "POST", request_path, query_string, body)    print(response.status_code)    print(response.text)if __name__ == '__main__':    placeOrder()
+
+4.  Check the response
+
+The example below indicates a successful response
+
+    {        "client_oid": null,        "order_id": "596471064624628269"}
+
+If the request fails, refer to the detailed error codes [here](https://www.weex.com/api-doc/contract/ErrorCodes/ExampleOfErrorCode)
+, or contact technical support in the [TG group](https://t.me/weexaiwars)
+.
+
+#### Get Trade Details for Completed Orders[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#get-trade-details-for-completed-orders "Direct link to Get Trade Details for Completed Orders")
+
+1.Use Trade Details API to retrieve your trade history.
+
+Sample code:
+
+    import timeimport hmacimport hashlibimport base64import requestsapi_key = ""secret_key = ""access_passphrase = ""def generate_signature_get(secret_key, timestamp, method, request_path, query_string):  message = timestamp + method.upper() + request_path + query_string  signature = hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).digest()  return base64.b64encode(signature).decode()def send_request_get(api_key, secret_key, access_passphrase, method, request_path, query_string):  timestamp = str(int(time.time() * 1000))  signature = generate_signature_get(secret_key, timestamp, method, request_path, query_string)  headers = {        "ACCESS-KEY": api_key,        "ACCESS-SIGN": signature,        "ACCESS-TIMESTAMP": timestamp,        "ACCESS-PASSPHRASE": access_passphrase,        "Content-Type": "application/json",        "locale": "en-US"  }  url = "https://api-contract.weex.com/"  # Please replace with the actual API address  if method == "GET":    response = requests.get(url + request_path+query_string, headers=headers)  return responsedef fills():    request_path = "/capi/v2/order/fills"    query_string = "?symbol=cmt_btcusdt&orderId=YOUR_ORDER_ID"    response = send_request_get(api_key, secret_key, access_passphrase, "GET", request_path, query_string)    print(response.status_code)    print(response.text)if __name__ == '__main__':    fills()
+
+2.Check the response
+
+The example below indicates a successful response
+
+    {  "list": [    {      "tradeId": 0,      "orderId": 0,      "symbol": "cmt_btcusdt",      "marginMode": "SHARED",      "separatedMode": "SEPARATED",      "positionSide": "LONG",      "orderSide": "BUY",      "fillSize": "67",      "fillValue": "12",      "fillFee": "67",      "liquidateFee": "MAKER",      "realizePnl": "83",      "direction": "OPEN_LONG",      "liquidateType": "FORCE_LIQUIDATE",      "legacyOrdeDirection": "OPEN_LONG",      "createdTime": 1716712170527    }  ],  "nextFlag": false,  "totals": 0}
+
+If the request fails, refer to the detailed error codes [here](https://www.weex.com/api-doc/contract/ErrorCodes/ExampleOfErrorCode)
+, or contact technical support in the [TG group](https://t.me/weexaiwars)
+.
+
+**Our customer support team will contact you once you pass the testing.**
+
+### 2.3 Funding & Model Testing[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#23-funding--model-testing "Direct link to 2.3 Funding & Model Testing")
+
+Once you have completed API testing and passed the qualification review, your account will receive the initial funds required for AI model testing. You may freely use these funds until January 5, 2026 to optimize your AI model.
+
+If you encounter any technical issues or run out of test funds, please contact our official technical support group for assistance.
+
+### 2.4 Pre-Competition Preparation & Account Reset[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#24-pre-competition-preparation--account-reset "Direct link to 2.4 Pre-Competition Preparation & Account Reset")
+
+After the model testing phase, the official list of participants will be published, so please stay updated via the [official participant list](https://dorahacks.io/hackathon/weex-ai-trading/faq)
+ on the event page. To ensure fairness before the official competition begins, all participant accounts will be reset to a unified initial state, with your competition fund balances reset to **1,000 USDT**, all open orders canceled, and all positions closed.
+
+At this point, all pre-competition preparations are complete. Ensure your AI model is fully integrated with your API Key and ready to trade immediately once the competition begins.
+
+**Note:** All official announcements, participant lists, and rule updates will be published on the [WEEX official event page](https://www.weex.com/events/ai-trading)
+. Detailed schedules, ranking rules, and risk management terms will be provided in the official Competition Rules Handbook or via separate notices before the event.
+
+### Reference[​](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#reference "Direct link to Reference")
+
+*   [FAQ](https://dorahacks.io/hackathon/weex-ai-trading/faq)
+    
+*   For specific inquiries or additional support: [Ask Question](https://dorahacks.io/hackathon/weex-ai-trading/qa)
+    
+*   **Hackathon Timeline** Pre-Registration: Now – December 30, 2025 Pre-Season (Online): Early January 2026 (20 days) Finals (Online): Late February 2026 (17 days) Awarding Ceremony (Dubai): March 2026
+    
+
+You now have all the information needed to successfully register, prepare, and participate in **AI Wars: WEEX Alpha Awakens**. Follow each step carefully to ensure your AI model is fully integrated, tested, and ready for competition day.
+
+Register now to secure your spot: [https://www.weex.com/events/ai-trading](https://www.weex.com/events/ai-trading)
+. Good luck, and may the best algorithms win!
+
+*   [Welcome to the Arena: The Path to Alpha Awakening](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#welcome-to-the-arena-the-path-to-alpha-awakening)
+    
+*   [Step 1｜Register, Create & Submit Your BUIDL, and Obtain Your API Key](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#step-1register-create--submit-your-buidl-and-obtain-your-api-key)
+    *   [1.1 Visit the AI Wars: WEEX Alpha Awakens Event Page](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#11-visit-the-ai-wars-weex-alpha-awakens-event-page)
+        
+    *   [1.2 Find a Team or Build Your Own](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#12-find-a-team-or-build-your-own)
+        
+    *   [1.3 Missing Information? We Will Follow Up](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#13-missing-information-we-will-follow-up)
+        
+    *   [1.4 Your Starter Kit](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#14-your-starter-kit)
+        
+*   [Step 2｜Pass the Gateway: Complete Your API Testing](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#step-2pass-the-gateway-complete-your-api-testing)
+    *   [2.1 Instructions](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#21-instructions)
+        
+    *   [2.2 Connect and Test](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#22-connect-and-test)
+        
+    *   [2.3 Funding & Model Testing](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#23-funding--model-testing)
+        
+    *   [2.4 Pre-Competition Preparation & Account Reset](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#24-pre-competition-preparation--account-reset)
+        
+    *   [Reference](https://www.weex.com/api-doc/ai/introduction/ParticipantGuide#reference)
+
+--------------------------
+
+LIMITS
+API keys have rate limits. Exceeding them returns error 429: Too many requests. The account is used as the basic unit of speed limit for the endpoints that need to carry an API key. For endpoints that do not need to carry an API key, IP addresses are used as the basic unit of rate limiting.
+
+Limits description
+
+IP-based and UID-based limits operate independently.
+
+Each endpoint indicates whether it follows IP or UID limits, along with its weight value.
+
+Endpoints with IP limits have an independent limit of 1000 requests per 10 seconds.
+
+Endpoints with UID limits also have an independent limit of 1000 requests per 10 seconds.
+
+Special Interface Description
+
+The interfaces for Place Order, Cancel Order, Place Trigger Order, and Cancel Trigger Order are limited to a maximum of 10 requests per second.
+
+Limits error
+
+When a 429 error occurs, make sure to stop sending excessive requests.
+
+-----------------
+
+REST Domain	https://api-contract.weex.com	Main Domain
+
+-----------------------
+
+Signature
+The ACCESS-SIGN request header is generated by using the HMAC SHA256 method encryption on the timestamp + method.toUpperCase() + requestPath + "?" + queryString + body string (+ denotes string concatenation), and putting the result through BASE64 encoding.
+
+Signature Field Description
+
+timestamp: This matches the ACCESS-TIMESTAMP header.
+method: The request method (POST/GET), with all letters in uppercase.
+requestPath: API endpoint path.
+queryString: The query parameters after the "?" in the URL.
+body: The string that corresponds to the request body (omitted if empty, typically for GET requests).
+Signature format rules if queryString is empty
+
+timestamp + method.toUpperCase() + requestPath + body
+Signature format rules if queryString is not empty
+
+timestamp + method.toUpperCase() + requestPath + "?" + queryString + body
+Examples
+
+Fetching market depth, using BTCUSDT as an example:
+
+Timestamp = 1591089508404
+Method = "GET"
+requestPath = "/capi/v2/market/candles"
+queryString= "?symbol=cmt_btcusdt&limit=20"
+Generate the string to be signed:
+
+'1591089508404GET/api/v2/market/depth?symbol=cmt_btcusdt&limit=20'
+Placing an order, using cmt_btcusdt as an example:
+
+Timestamp = 1561022985382
+
+Method = "POST"
+
+requestPath = "/capi/v2/order/placeOrder"
+
+body =
+
+{"symbol":"cmt_btcusdt","quantity":"8","side":"buy","price":"1","orderType":"limit","clientOrderId":"ww#123456"}
+
+
+Generate the string to be signed:
+
+'1561022985382POST/capi/v2/order/placeOrder{"symbol":"cmt_btcusdt","size":"8","side":"buy","price":"1","orderType":"limit","clientOrderId":"ww#123456"}'
+
+
+Steps to generate the final signature
+
+Encrypt the unsigned string with HMAC SHA256 using your secretKey
+Signature = hmac_sha256(secretkey, Message)
+Encode the signature using Base64
+Signature = base64.encode(Signature)
+
+-------------------------
+
+Demo Code Python: "import time
+import hmac
+import hashlib
+import base64
+import requests
+import json
+
+api_key = ""
+secret_key = ""
+access_passphrase = ""
+
+
+def generate_signature(secret_key, timestamp, method, request_path, query_string, body):
+  message = timestamp + method.upper() + request_path + query_string + str(body)
+  signature = hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).digest()
+  # print(base64.b64encode(signature).decode())
+  return base64.b64encode(signature).decode()
+
+
+def generate_signature_get(secret_key, timestamp, method, request_path, query_string):
+  message = timestamp + method.upper() + request_path + query_string
+  signature = hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).digest()
+  # print(base64.b64encode(signature).decode())
+  return base64.b64encode(signature).decode()
+
+
+def send_request_post(api_key, secret_key, access_passphrase, method, request_path, query_string, body):
+  timestamp = str(int(time.time() * 1000))
+  # print(timestamp)
+  body = json.dumps(body)
+  signature = generate_signature(secret_key, timestamp, method, request_path, query_string, body)
+
+  headers = {
+        "ACCESS-KEY": api_key,
+        "ACCESS-SIGN": signature,
+        "ACCESS-TIMESTAMP": timestamp,
+        "ACCESS-PASSPHRASE": access_passphrase,
+        "Content-Type": "application/json",
+        "locale": "en-US"
+  }
+
+  url = "https://api-contract.weex.com/"  # Please replace with the actual API address
+  if method == "GET":
+    response = requests.get(url + request_path, headers=headers)
+  elif method == "POST":
+    response = requests.post(url + request_path, headers=headers, data=body)
+  return response
+
+def send_request_get(api_key, secret_key, access_passphrase, method, request_path, query_string):
+  timestamp = str(int(time.time() * 1000))
+  # print(timestamp)
+  signature = generate_signature_get(secret_key, timestamp, method, request_path, query_string)
+
+  headers = {
+        "ACCESS-KEY": api_key,
+        "ACCESS-SIGN": signature,
+        "ACCESS-TIMESTAMP": timestamp,
+        "ACCESS-PASSPHRASE": access_passphrase,
+        "Content-Type": "application/json",
+        "locale": "en-US"
+  }
+
+  url = "https://api-contract.weex.com/"  # Please replace with the actual API address
+  if method == "GET":
+    response = requests.get(url + request_path+query_string, headers=headers)
+  return response
+
+def get():
+    # Example of calling a GET request
+    request_path = "/capi/v2/account/position/singlePosition"
+    query_string = '?symbol=cmt_btcusdt'
+    response = send_request_get(api_key, secret_key, access_passphrase, "GET", request_path, query_string)
+    print(response.status_code)
+    print(response.text)
+
+def post():
+    # Example of calling a POST request
+    request_path = "/capi/v2/order/placeOrder"
+    body = {
+	"symbol": "cmt_btcusdt",
+	"client_oid": "71557515757447",
+	"size": "0.01",
+	"type": "1",
+	"order_type": "0",
+	"match_price": "1",
+	"price": "80000"}
+    query_string = ""
+    response = send_request_post(api_key, secret_key, access_passphrase, "POST", request_path, query_string, body)
+    print(response.status_code)
+    print(response.text)
+
+if __name__ == '__main__':
+    get()
+    post()"
+
+---------------
+
+
+Standard Specifications
+Timestamp
+
+The ACCESS-TIMESTAMP in request signatures is in milliseconds.Requests are rejected if the timestamp deviates by over 30 seconds from the API server time. If the local server time deviates significantly from the API server time, we recommend updating the HTTP header by querying the API server time.
+
+Request formats
+
+Only two request methods are supported: GET and POST
+
+GET: Parameters are sent via queryString in the path to the server.
+POST: Parameters are sent as a JSON-formatted body to the server.
+
+-----------------
+
+[Skip to main content](https://www.weex.com/api-doc/ai/UploadAiLog#__docusaurus_skipToContent_fallback)
+
+On this page
+
+*   **POST** `/capi/v2/order/uploadAiLog`
+
+Weight(IP): 1, Weight(UID): 1
+
+Important rule[​](https://www.weex.com/api-doc/ai/UploadAiLog#important-rule "Direct link to Important rule")
+
+--------------------------------------------------------------------------------------------------------------
+
+BUIDLs entering the live trading phase must provide an AI log (ai\_log) containing:
+
+*   Model version
+*   Input and output data
+*   Order execution details
+
+The AI log is required to verify AI involvement and compliance. If you fail to provide valid proof of AI involvement, we will disqualify your team and remove it from the rankings. Only approved UIDs on the official allowlist may submit AI log data.
+
+**Request parameters**
+
+| Parameter | Type | Required? | Description |
+| --- | --- | --- | --- |
+| orderId | Long | No  | The order ID returned from your WEEX order API |
+| stage | String | Yes | The trading stage where AI participated (e.g., "Strategy Generation") |
+| model | String | Yes | The name or version of the AI model used (e.g., "GPT-4-turbo") |
+| input | JSON | Yes | The prompt, query, or input text given to the AI model. If the input includes attachments (e.g., files, images), please provide links |
+| output | JSON | Yes | The AI model's generated output, including predictions or decision recommendations. For inference models, show the inference process |
+| explanation | String | Yes | A concise explanation summarizing the AI's analysis and reasoning in natural language. **Maximum length: 1000 characters** |
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+
+**Request example 1**
+
+    curl -X POST "https://api-contract.weex.com/capi/v2/order/uploadAiLog" \   -H "ACCESS-KEY:*******" \   -H "ACCESS-SIGN:*" \   -H "ACCESS-PASSPHRASE:*" \   -H "ACCESS-TIMESTAMP:1659076670000" \   -H "locale:zh-CN" \   -H "Content-Type: application/json" \   -d '{    "orderId": null,    "stage": "Decision Making",    "model": "GPT-5-mini",    "input": {"prompt":"Summarize last 6h BTC/ETH correlation and give a directional signal."},    "output": {"response":"Sell ETH; correlation weakened, BTC showing dominance."},    "explanation": "Analysis of the past 6 hours of market data indicates a weakening correlation between BTC and ETH. BTC demonstrated relative strength and capital dominance, resulting in a directional signal favoring selling ETH."}'
+
+**Request example 2**
+
+    curl -X POST "https://api-contract.weex.com/capi/v2/order/uploadAiLog" \   -H "ACCESS-KEY:*******" \   -H "ACCESS-SIGN:*" \   -H "ACCESS-PASSPHRASE:*" \   -H "ACCESS-TIMESTAMP:1659076670000" \   -H "locale:zh-CN" \   -H "Content-Type: application/json" \   -d '{    "orderId": null,    "stage": "Strategy Generation",    "model": "GPT-5-turbo",    "input": {        "prompt": "Predict BTC/USDT price trend for the next 3 hours.",        "data": {            "RSI_14": 36.8,            "EMA_20": 68950.4,            "FundingRate": -0.0021,            "OpenInterest": 512.3        }    },    "output": {        "signal": "Buy",        "confidence": 0.82,        "target_price": 69300,        "reason": "Negative funding + rising open interest implies short squeeze potential."    },     "explanation": "Low RSI and price near the EMA20 suggest weakening downside momentum. Negative funding with rising open interest points to short-side pressure and potential squeeze risk, indicating a bullish bias for BTC over the next three hours."}'
+
+**Response parameters**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| code | String | Request status code, "00000" indicates success |
+| msg | String | Request result description, "success" indicates success |
+| requestTime | Long | Request timestamp (milliseconds) |
+| data | String | Returned business data, "upload success" indicates upload successful |
+
+**Response example**
+
+    {  "code": "00000",  "msg": "success",  "requestTime": 1763103201300,  "data": "upload success"}
+
+*   [Important rule](https://www.weex.com/api-doc/ai/UploadAiLog#important-rule)
+
+---------------------
+
+Trades => https://www.weex.com/api-doc/ai/orderAPI
+
+Trade
+Place Order.
+Cancel Order.
+Get Order Info.
+Get History Orders.
+Get Current Orders.
+Get Fills.
+Place Trigger Order.
+Cancel Trigger Order.
+Get Current Plan Orders.
+Get History Plan Orders.
+Close All Positions.
+Cancel All Orders.
+Place TP/SL Order.
+Modify TP/SL Order.
+
+----------------
+
+Account => https://www.weex.com/api-doc/ai/accountAPI
+
+Account
+Get Account List。
+Get Single Account。
+Get Account Assets。
+Get Contract Account Bills。
+Get User Settings Of One Single Futures。
+Change Leverage。
+Adjust Position Margin。
+Automatic Margin Top-Up。
+Get All Positions。
+Get Single Position。
+Modify User Account Mode。
+
+-----------------
+
+Market => https://www.weex.com/api-doc/ai/marketAPI
+
+Market
+Get Server Time。
+Get Futures Information。
+Get OrderBook Depth。
+Get All Ticker。
+Get Single Ticker。
+Get Trades。
+Get Candlestick Data。
+Get Cryptocurrency Index。
+Get Open Interest。
+Get Next Funding Time。
+Get Historical Funding Rates。
+Get Current Funding Rate。
+
+-------------------
+
+[Skip to main content](https://www.weex.com/api-doc/contract/Account_API/GetAccountBalance#__docusaurus_skipToContent_fallback)
+
+**HTTP request** Retrieve account assets
+
+*   **GET** `/capi/v2/account/assets`
+
+Weight(IP): 5, Weight(UID): 10
+
+**Request parameters**
+
+NONE
+
+**Request example**
+
+    curl "https://api-contract.weex.com/capi/v2/account/assets" \   -H "ACCESS-KEY:*******" \   -H "ACCESS-SIGN:*******" \   -H "ACCESS-PASSPHRASE:*****" \   -H "ACCESS-TIMESTAMP:1659076670000" \   -H "locale:zh-CN" \   -H "Content-Type: application/json"
+
+**Response parameters**
+
+| Field Name | Type | Field Description |
+| --- | --- | --- |
+| coinName | String | Name of the crypto |
+| available | String | Available asset |
+| frozen | String | Frozen asset |
+| equity | String | Total asset |
+| unrealizePnl | String | Unrealized Profit and Loss |
+
+**Response example**
+
+    [  {    "coinName": "USDT",    "available": "5413.06877369",    "equity": "5696.49288823",    "frozen": "81.28240000",    "unrealizePnl": "-34.55300000"  }]
+
+---------
+
+[Skip to main content](https://www.weex.com/api-doc/contract/Account_API/AdjustLeverage#__docusaurus_skipToContent_fallback)
+
+*   **POST** `/capi/v2/account/leverage`
+
+Weight(IP): 10, Weight(UID): 20
+
+**Request parameters**
+
+| Parameter | Type | Required? | Description |
+| --- | --- | --- | --- |
+| symbol | String | Yes | Trading pair |
+| marginMode | Integer | Yes | Margin mode  <br>1: Cross Mode  <br>3: Isolated Mode  <br>The marginMode must be set to the account's current mode. |
+| longLeverage | String | Yes | Long position leverage  <br>In Cross Mode, must be identical to shortLeverage. |
+| shortLeverage | String | Yes | Short position leverage  <br>In Cross Mode, must be identical to longLeverage. |
+
+**Request example**
+
+    curl -X POST "https://api-contract.weex.com/capi/v2/account/leverage" \   -H "ACCESS-KEY:*******" \   -H "ACCESS-SIGN:*" \   -H "ACCESS-PASSPHRASE:*" \   -H "ACCESS-TIMESTAMP:1659076670000" \   -H "locale:zh-CN" \   -H "Content-Type: application/json" \   -d '{"symbol":"cmt_bchusdt","marginMode":1,"longLeverage":"2"}'
+
+**Response parameters**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| msg | string | Response message |
+| requestTime | string | Timestamp  <br>Unix millisecond timestamp |
+| code | string | Response code |
+
+**Response example**
+
+    {    "msg": "success",    "requestTime": 1713339011237,    "code": "200"}
+
+---------
+
+[Skip to main content](https://www.weex.com/api-doc/contract/Account_API/AdjustMargin#__docusaurus_skipToContent_fallback)
+
+*   **POST** `/capi/v2/account/adjustMargin`
+
+Weight(IP): 15, Weight(UID): 30
+
+**Request parameters**
+
+| Parameter | Type | Required? | Description |
+| --- | --- | --- | --- |
+| coinId | Integer | No  | Collateral ID [Basic Crypto Information](https://www.weex.com/api-doc/spot/ConfigAPI/CurrencyInfo)<br>  <br>Default is 2 (USDT) |
+| isolatedPositionId | Long | Yes | Isolated margin position ID  <br>[Get the isolatedPositionId](https://www.weex.com/api-doc/contract/Account_API/GetSingleContractPosition) |
+| collateralAmount | String | Yes | Collateral amount  <br>positive means increase, and negative means decrease |
+
+**Request example**
+
+    curl -X POST "https://api-contract.weex.com/capi/v2/account/adjustMargi" \   -H "ACCESS-KEY:*******" \   -H "ACCESS-SIGN:*" \   -H "ACCESS-PASSPHRASE:*" \   -H "ACCESS-TIMESTAMP:1659076670000" \   -H "locale:zh-CN" \   -H "Content-Type: application/json" \   -d '{"coinId":2,"isolatedPositionId":1,"collateralAmount":"10"}'
+
+**Response parameters**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| msg | String | Response message |
+| requestTime | String | Timestamp  <br>Unix millisecond timestamp |
+| code | String | Response code |
+
+**Response example**
+
+    {    "msg": "success",    "requestTime": 1713339011237,    "code": "200"}
+
+---------
+
+[Skip to main content](https://www.weex.com/api-doc/contract/Account_API/AutoAddMargin#__docusaurus_skipToContent_fallback)
+
+*   **POST** `/capi/v2/account/modifyAutoAppendMargin`
+
+Weight(IP): 15, Weight(UID): 30
+
+**Request parameters**
+
+| Parameter | Type | Required? | Description |
+| --- | --- | --- | --- |
+| positionId | Long | Yes | Isolated margin position ID |
+| autoAppendMargin | Boolean | Yes | Whether to enable automatic margin call |
+
+**Request example**
+
+    curl -X POST "https://api-contract.weex.com/capi/v2/account/modifyAutoAppendMargin" \   -H "ACCESS-KEY:*******" \   -H "ACCESS-SIGN:*" \   -H "ACCESS-PASSPHRASE:*" \   -H "ACCESS-TIMESTAMP:1659076670000" \   -H "locale:zh-CN" \   -H "Content-Type: application/json" \   -d '{"positionId":1,"autoAppendMargin":false}'
+
+**Response parameters**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| msg | String | Response message |
+| requestTime | String | Timestamp  <br>Unix millisecond timestamp |
+| code | String | Response code |
+
+**Response example**
+
+    {    "msg": "success",    "requestTime": 1713339011237,    "code": "200"}
+
+---------
+
+[Skip to main content](https://www.weex.com/api-doc/contract/Account_API/GetSingleContractPosition#__docusaurus_skipToContent_fallback)
+
+*   **GET** `/capi/v2/account/position/singlePosition`
+
+Weight(IP): 2, Weight(UID): 3
+
+**Request parameters**
+
+| Parameter | Type | Required? | Description |
+| --- | --- | --- | --- |
+| symbol | String | Yes | Trading pair |
+
+**Request example**
+
+    curl "https://api-contract.weex.com/capi/v2/account/position/singlePosition?symbol=cmt_bchusdt" \   -H "ACCESS-KEY:*******" \   -H "ACCESS-SIGN:*******" \   -H "ACCESS-PASSPHRASE:*****" \   -H "ACCESS-TIMESTAMP:1659076670000" \   -H "locale:zh-CN" \   -H "Content-Type: application/json"
+
+**Response parameters**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| id  | Long | Position ID |
+| account\_id | Long | Associated account ID |
+| coin\_id | Integer | Associated collateral currency ID |
+| contract\_id | Long | Associated futures ID |
+| symbol | String | Trading pair |
+| side | String | Position direction such as LONG or SHORT |
+| margin\_mode | String | Margin mode of current position  <br>SHARED: Cross Mode  <br>ISOLATED: Isolated Mode |
+| separated\_mode | String | Current position's separated mode  <br>COMBINED: Combined mode  <br>SEPARATED: Separated mode |
+| separated\_open\_order\_id | Long | Opening order ID of separated position |
+| leverage | String | Position leverage |
+| size | String | Current position size |
+| open\_value | String | Initial value at position opening |
+| open\_fee | String | Opening fee |
+| funding\_fee | String | Funding fee |
+| marginSize | String | Margin amount (margin coin) |
+| isolated\_margin | String | Isolated margin |
+| is\_auto\_append\_isolated\_margin | boolean | Whether the auto-adding of funds for the isolated margin is enabled (only for isolated mode) |
+| cum\_open\_size | String | Accumulated opened positions |
+| cum\_open\_value | String | Accumulated value of opened positions |
+| cum\_open\_fee | String | Accumulated fees paid for opened positions |
+| cum\_close\_size | String | Accumulated closed positions |
+| cum\_close\_value | String | Accumulated value of closed positions |
+| cum\_close\_fee | String | Accumulated fees paid for closing positions |
+| cum\_funding\_fee | String | Accumulated settled funding fees |
+| cum\_liquidate\_fee | String | Accumulated liquidation fees |
+| created\_match\_sequence\_id | Long | Matching engine sequence ID at creation |
+| updated\_match\_sequence\_id | Long | Matching engine sequence ID at last update |
+| created\_time | Long | Creation time  <br>Unix millisecond timestamp |
+| updated\_time | Long | Update time  <br>Unix millisecond timestamp |
+| contractVal | String | Futures face value |
+| unrealizePnl | String | Unrealized PnL |
+| liquidatePrice | String | Estimated liquidation price  <br>If the value = 0, it means the position is at low risk and there is no liquidation price at this time |
+
+**Response example**
+
+    [  {    "id": 689987235755328154,    "account_id": 538941453963887258,    "coin_id": 2,    "contract_id": 10000001,    "symbol": "cmt_btcusdt",    "side": "LONG",    "margin_mode": "SHARED",    "separated_mode": "COMBINED",    "separated_open_order_id": 0,    "leverage": "100",    "size": "0.020000",    "open_value": "1801.0670000",    "open_fee": "0.70731060",    "funding_fee": "1.22618160",    "marginSize": "17.154980",    "isolated_margin": "0",    "is_auto_append_isolated_margin": false,    "cum_open_size": "0.020000",    "cum_open_value": "1801.0670000",    "cum_open_fee": "0.70731060",    "cum_close_size": "0",    "cum_close_value": "0",    "cum_close_fee": "0",    "cum_funding_fee": "1.22618160",    "cum_liquidate_fee": "0",    "created_match_sequence_id": 7027745116,    "updated_match_sequence_id": 7040274110,    "created_time": 1764505776347,    "updated_time": 1764588886461,    "contractVal": "0.000001",    "unrealizePnl": "-85.5690000",    "liquidatePrice": "0"  }]
+
+---------
+
+Get All Positions
+GET /capi/v2/account/position/allPosition
+Weight(IP): 10, Weight(UID): 15
+
+Request parameters
+
+NONE
+
+Request example
+
+curl "https://api-contract.weex.com/capi/v2/account/position/allPosition" \
+   -H "ACCESS-KEY:*******" \
+   -H "ACCESS-SIGN:*******" \
+   -H "ACCESS-PASSPHRASE:*****" \
+   -H "ACCESS-TIMESTAMP:1659076670000" \
+   -H "locale:zh-CN" \
+   -H "Content-Type: application/json"
+
+
+Response parameters
+
+Parameter	Type	Description
+id	Long	Position ID
+account_id	Long	Associated account ID
+coin_id	Integer	Associated collateral currency ID
+contract_id	Long	Associated futures ID
+symbol	String	Trading pair
+side	String	Position direction such as LONG or SHORT
+margin_mode	String	Margin mode of current position
+SHARED: Cross Mode
+ISOLATED: Isolated Mode
+separated_mode	String	Current position's separated mode
+COMBINED: Combined mode
+SEPARATED: Separated mode
+separated_open_order_id	Long	Opening order ID of separated position
+leverage	String	Position leverage
+size	String	Current position size
+open_value	String	Initial value at position opening
+open_fee	String	Opening fee
+funding_fee	String	Funding fee
+marginSize	String	Margin amount (margin coin)
+isolated_margin	String	Isolated margin
+is_auto_append_isolated_margin	boolean	Whether the auto-adding of funds for the isolated margin is enabled (only for isolated mode)
+cum_open_size	String	Accumulated opened positions
+cum_open_value	String	Accumulated value of opened positions
+cum_open_fee	String	Accumulated fees paid for opened positions
+cum_close_size	String	Accumulated closed positions
+cum_close_value	String	Accumulated value of closed positions
+cum_close_fee	String	Accumulated fees paid for closing positions
+cum_funding_fee	String	Accumulated settled funding fees
+cum_liquidate_fee	String	Accumulated liquidation fees
+created_match_sequence_id	Long	Matching engine sequence ID at creation
+updated_match_sequence_id	Long	Matching engine sequence ID at last update
+created_time	Long	Creation time
+Unix millisecond timestamp
+updated_time	Long	Update time
+Unix millisecond timestamp
+contractVal	String	Futures face value
+unrealizePnl	String	Unrealized PnL
+liquidatePrice	String	Estimated liquidation price
+If the value = 0, it means the position is at low risk and there is no liquidation price at this time
+
+---------
+
+Place Order
+POST /capi/v2/order/placeOrder
+Weight(IP): 2, Weight(UID): 5
+
+Request parameters
+
+Parameter	Type	Required?	Description
+symbol	String	Yes	Trading pair
+client_oid	String	Yes	Custom order ID (no more than 40 characters)
+size	String	Yes	Order quantity (cannot be zero or negative).
+type	String	Yes	1: Open long, 2: Open short, 3: Close long, 4: Close short
+order_type	String	Yes	0: Normal, 1: Post-Only, 2: Fill-Or-Kill, 3: Immediate Or Cancel
+match_price	String	Yes	0: Limit price, 1: Market price
+price	String	Yes	Order price (this is required for limit orders, and its accuracy and step size follow the futures information endpoint)
+presetTakeProfitPrice	BigDecimal	No	Preset take-profit price
+presetStopLossPrice	BigDecimal	No	Preset stop-loss price
+marginMode	Integer	No	Margin mode
+1: Cross Mode
+3: Isolated Mode
+Default is 1 (Cross Mode)
+Request example
+
+curl -X POST "https://api-contract.weex.com/capi/v2/order/placeOrder" \
+   -H "ACCESS-KEY:*******" \
+   -H "ACCESS-SIGN:*" \
+   -H "ACCESS-PASSPHRASE:*" \
+   -H "ACCESS-TIMESTAMP:1659076670000" \
+   -H "locale:zh-CN" \
+   -H "Content-Type: application/json" \
+   -d '{"symbol": "cmt_bchusdt","client_oid": "111111111222222","size": "1","type": "1","order_type": "0",
+     "match_price": "0","price": "100","presetTakeProfitPrice": "105","presetStopLossPrice": "95"}'
+
+
+Response parameters
+
+Parameter	Type	Description
+client_oid	String	Client-generated order identifier
+order_id	String	Order ID
+Response example
+
+{
+	"client_oid": null,
+	"order_id": "596471064624628269"
+}
+
+
+
+---------
+
+Get Single Ticker
+GET /capi/v2/market/ticker
+Weight(IP): 1
+
+Request parameters
+
+Parameter	Type	Required?	Description
+symbol	String	Yes	Trading pair
+Request example
+
+curl "https://api-contract.weex.com/capi/v2/market/ticker?symbol=cmt_btcusdt"
+
+
+Response parameters
+
+Parameter	Type	Description
+symbol	String	Trading pair
+last	String	Latest execution price
+best_ask	String	Ask price
+best_bid	String	Bid price
+high_24h	String	Highest price in the last 24 hours
+low_24h	String	Lowest price in the last 24 hours
+volume_24h	String	Trading volume of quote currency
+timestamp	String	System timestamp
+Unix millisecond timestamp
+priceChangePercent	String	Price increase or decrease (24 hours)
+base_volume	String	Trading volume of quote currency
+markPrice	String	Mark price
+indexPrice	String	Index price
+Response example
+
+{
+  "symbol": "cmt_btcusdt",
+  "last": "90755.3",
+  "best_ask": "90755.4",
+  "best_bid": "90755.3",
+  "high_24h": "91130.0",
+  "low_24h": "90097.3",
+  "volume_24h": "2321170547.37995",
+  "timestamp": "1764482511864",
+  "priceChangePercent": "0.000474",
+  "base_volume": "25615.0755",
+  "markPrice": "90755.2",
+  "indexPrice": "90797.161"
+}
+
+
+
+---------
+
+Get Historical Candlestick
+Description
+Query all historical K-line data and return a maximum of 100 pieces of data.
+When either startTime or endTime is invalid, the K-line data for the latest time period will be returned.
+When both startTime and endTime are provided, the endTime will take precedence and the startTime will be ignored.
+
+GET /capi/v2/market/historyCandles
+Weight(IP): 5
+
+Request parameters
+
+Parameter	Type	Required?	Description
+symbol	String	Yes	Trading pair
+granularity	String	Yes	Candlestick interval[1m,5m,15m,30m,1h,4h,12h,1d,1w]
+startTime	Long	No	The start time is to query the k-lines after this time
+Unix millisecond timestamp
+endTime	Long	No	The end time is to query the k-lines before this time
+Unix millisecond timestamp
+limit	Integer	No	The size of the data ranges from 1 to 100, with a default of 100
+priceType	String	No	Price Type : LAST latest market price; MARK mark; INDEX index;
+LAST by default
+Request example
+
+curl "https://api-contract.weex.com/capi/v2/market/historyCandles?symbol=cmt_bchusdt&granularity=1m"
+
+
+Response parameters
+
+Parameter	Type	Description
+index[0]	String	Candlestick time
+Unix millisecond timestamp
+index[1]	String	Opening price
+index[2]	String	Highest price
+index[3]	String	Lowest price
+index[4]	String	Closing price
+index[5]	String	Trading volume of the base coin
+index[6]	String	Trading volume of quote currency
+Response example
+
+[
+  [
+    "1716707460000",//Candlestick time
+    "69174.3",//Opening price
+    "69174.4",//Highest price
+    "69174.1",//Lowest price
+    "69174.3",//Closing price
+    "0", //Trading volume of the base coin 
+    "0.011" //Trading volume of quote currency
+  ]
+]
+
+
+
+---------
+
+Get Candlestick Data
+GET /capi/v2/market/candles
+Weight(IP): 1
+
+Request parameters
+
+Parameter	Type	Required?	Description
+symbol	String	Yes	Trading pair
+granularity	String	Yes	Candlestick interval[1m,5m,15m,30m,1h,4h,12h,1d,1w]
+limit	Integer	No	The size of the data ranges from 1 to 1000, with a default of 100
+priceType	String	No	Price Type : LAST latest market price; MARK mark; INDEX index;
+LAST by default
+Request example
+
+curl "https://api-contract.weex.com/capi/v2/market/candles?symbol=cmt_bchusdt&granularity=1m"
+
+
+Response parameters
+
+Parameter	Type	Description
+index[0]	String	Candlestick time
+Unix millisecond timestamp
+index[1]	String	Opening price
+index[2]	String	Highest price
+index[3]	String	Lowest price
+index[4]	String	Closing price
+index[5]	String	Trading volume of the base coin
+index[6]	String	Trading volume of quote currency
+Response example
+
+[
+    [
+        "1716707460000",//Candlestick time
+        "69174.3",//Opening price
+        "69174.4",//Highest price
+        "69174.1",//Lowest price
+        "69174.3",//Closing price
+        "0", //Trading volume of the base coin 
+        "0.011" //Trading volume of quote currency
+    ]
+]
+
+
+
+---------
+

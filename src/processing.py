@@ -1,6 +1,5 @@
 """archivo para limpiar los datos descargados, generar indicadores y el cálculo de target (alpha relativo)"""
 import pandas as pd
-import pandas_ta as ta
 import numpy as np
 import os
 import glob

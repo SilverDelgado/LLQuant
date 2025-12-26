@@ -78,7 +78,7 @@ El modelo genera dos salidas críticas para las siguientes fases:
 Objetivo: Introducir comprensión contextual al sistema. Mientras el ML ve números, los Agentes LLM ven riesgos fundamentales que no aparecen en las gráficas hasta que es tarde.
 
 
-### Nivel 1
+### Nivel 1 (EVALUADOR INDIVIDUAL Y RE-RANKING)
 Convertimos al LLM en un Auditor de Señales. No le pedimos que calcule precios (es malo porque es un modelo generativo), le pedimos que valide la tesis del modelo matemático.
 
 Input:
@@ -92,7 +92,8 @@ Noticias desde API o donde sea sobre ese activo:
 Output: 
 Conviction Score (0.0 a 1.0)
 
-### Nivel 2
+
+### Nivel 2 (RIESGO)
 Este agente no mira activos individuales, sino el contexto global para calibrar la agresividad de la cartera.
 
 Input: Datos Macro (VIX, S&P500, Tasas de Interés, Índice Fear & Greed).
@@ -100,7 +101,8 @@ Prompt del Sistema: Analiza el entorno macroeconómico. ¿Estamos en un régimen
 
 Output Crítico:Risk Aversion Parameter ($\delta$): Un valor numérico que ajusta la fórmula de optimización.Miedo extremo $\rightarrow$ Delta Alto (El modelo matemático priorizará bonos/USDT).Euforia/Estabilidad $\rightarrow$ Delta Bajo (El modelo permitirá más exposición a volatilidad).
 
-## 3. FASE DE OPTIMIZACIÓN
+
+## Nivel 3. FASE DE OPTIMIZACIÓN
 Eliminar la alucinación financiera, queremos  algo matemáticamente consistente y preciso, utilizamos un motor de optimización convexa determinista: Black-Litterman.
 
 Qué recibe:
