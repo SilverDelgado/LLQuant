@@ -30,8 +30,7 @@ def frac_diff_ffd(series, d=0.4, thres=1e-5):
 
 def clean_and_align_data(input_dir):
     """
-    FASE 1: Ingesta y Limpieza
-    Carga los CSVs, alinea las fechas y rellena huecos.
+    Carga los dataset, alinea las fechas y rellena huecos.
     """
     print("[DATA] limpiando..")
     files = glob.glob(os.path.join(input_dir, "*_raw.csv"))
@@ -46,7 +45,7 @@ def clean_and_align_data(input_dir):
         all_data.append(df)
 
     if not all_data:
-        raise ValueError("No se encontraron archivos CSV en data/raw")
+        raise ValueError("No se encontraron archivos csv en data/raw")
 
     full_df = pd.concat(all_data)
     
@@ -100,7 +99,7 @@ def add_technical_indicators(df, use_frac_diff=True):
 
 def calculate_target_alpha(df, horizon=1):
     """Definición del Target (Alpha Relativo)"""
-    print(f"[DATA] Calculando target ... (Alpha a {horizon}h) ---")
+    print(f"[DATA] Calculando target ... (Alpha a {horizon}h) ---") #horizon: como de lejos quieres que el modelo prediga (en horas)
     
     # 1. Calcular Retorno Futuro Real (Sin FracDiff, dinero real)
     # shift(-horizon) mira hacia el futuro (traemos la info de las 10 a las 9 alinear causa (features) con efecto market_mean que ponemos luego en paso 2)
