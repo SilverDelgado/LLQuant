@@ -81,18 +81,19 @@ def train_xgboost(train, val):
 
     model = xgb.XGBRegressor(
         objective='reg:squarederror',
-        n_estimators=5000,
-        learning_rate=0.05,     # ANTES 0.005. Ahora aprende 10x más rápido.
-        max_depth=8,            # ANTES 4. Ahora busca relaciones mucho más profundas.
-        min_child_weight=1,     # Permite que el árbol haga grupos más pequeños (más diferenciación).
-        gamma=0.0,              # Sin barrera mínima para dividir nodos.
-        subsample=0.8,          
-        colsample_bytree=1.0,   # Que mire TODOS los indicadores, no solo el 80%.
-        reg_alpha=0.0,          # Sin regularización L1 (permite features ruidosos).
-        reg_lambda=1.0,         # Regularización L2 estándar.
-        early_stopping_rounds=200, # Mucha más paciencia.
+        n_estimators=2000,          
+        learning_rate=0.01,         
+        max_depth=5,                
+        min_child_weight=10,        
+        gamma=0.0,                 
+        subsample=0.65,             
+        colsample_bytree=0.70,      
+        reg_alpha=0.1,              
+        reg_lambda=2.0,             
+        early_stopping_rounds=100,  
         n_jobs=-1,
-        random_state=42
+        random_state=42,
+        eval_metric='rmse'
     )
     
     model.fit(

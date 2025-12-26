@@ -142,4 +142,4 @@ def process_pipeline(horizon=1, use_frac_diff=True):
     print(final_dataset.head())
 
 if __name__ == "__main__":
-    process_pipeline(horizon=1, use_frac_diff=True)
+    process_pipeline(horizon=4, use_frac_diff=True)

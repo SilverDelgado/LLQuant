@@ -1,4 +1,4 @@
-*.pdf
+README.pdf
 uv.lock
 .env
 src/__pycache__/
