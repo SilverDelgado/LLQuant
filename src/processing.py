@@ -1,144 +1,361 @@
-"""archivo para limpiar los datos descargados, generar indicadores y el cálculo de target (alpha relativo)"""
+"""Pipeline Fase 1: FracDiff -> Features Neutras -> Alpha Target"""
 import pandas as pd
 import numpy as np
 import os
 import glob
+from scipy.stats import norm
+import warnings
+warnings.filterwarnings('ignore')
 
-# ==================== Math Utils FracDiff ====================
 
-def get_weights_ffd(d, thres=1e-5):
-    """Genera los pesos para la diferenciación fraccional."""
-    w, k = [1.], 1
-    while True:
-        w_ = -w[-1] / k * (d - k + 1)
-        if abs(w_) < thres:
-            break
-        w.append(w_)
-        k += 1
-    return np.array(w[::-1])
+# FRACDIFF  ====================
 
-def frac_diff_ffd(series, d=0.4, thres=1e-5):
-    """Aplica diferenciación fraccional manteniendo memoria."""
-    w = get_weights_ffd(d, thres)
-    width = len(w) - 1
-    if len(series) < width:
+def fracdiff_fixed_window(series, d=0.4, window=500):
+    """
+    Fixed-Window Fractional Differenciación con ventana fija para calcular este valor sin look ahead bias.
+    para calcular el valor de HOY, la fórmula matemática necesita multiplicar y sumar los precios de las últimas x velas(window)
+
+    """
+    if len(series) < window:
         return pd.Series(np.nan, index=series.index)
-    return series.rolling(window=len(w)).apply(lambda x: np.dot(x, w), raw=True)
-
-# ==================== FUNCIONES DEL PIPELINE ====================
-
-def clean_and_align_data(input_dir):
+    
+    # Pesos FFD
+    weights = [1.0] #peso del dato actual (hoy) == siempre 1
+    for k in range(1, window):# calculamos cuánto nos importa el dato de ayer,antesdeayer,hace3dias... (pesos van decayendo)
+        #simplemente creamos lista de coeficientes(weights) de len (window) con la info de window y del d
+        weights.append(-weights[-1] * (d - k + 1) / k) # weight = -(weight anterior) *(d - k + 1) / k
+    weights = np.array(weights[::-1]) #Reordenamos weights: [pequeño, mediano, ...., Grande] para la funcion convolve
+    values = series.fillna(method='ffill').fillna(0).values#rellenamos huecos
+    diff_values = np.convolve(values, weights, mode='valid') #tomamos la ventana de 500 pesos y la deslizamos sobre las velas, en cada paso
+    #mode valid para que solo calcule una vez tiene lo suficiente (numero 499).
     """
-    Carga los dataset, alinea las fechas y rellena huecos.
+    eliminamos primeros datos window que son inestables, como valid
+    elimino primero los 499 inestbales, nos queda un array mas corto
+    (con 1000 velas y window 500, diff_values tiene 501)
     """
-    print("[DATA] limpiando..")
-    files = glob.glob(os.path.join(input_dir, "*_raw.csv"))
+    new_index = series.index[window-1:]
+    return pd.Series(diff_values, index=new_index) #obtenemos serie transformada y alineada con los valores estacionarios abstractos
+    #estos valores abstractos representan la fuerza del precio conservando la memoria y siendo estacionarios matemáticamente
+
+# INDICADORES MANUALES sobre price_diferenciado fraccionalmente ====================
+
+def rsi_price_d(price_d, period=14):
+    """RSI calculado SOBRE la serie diferenciada"""
+    delta = price_d.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+def bollinger_features(price_d, period=20, std=2):
+    """Retorna Z-Score y Band Width sobre price_d"""
+    mid = price_d.rolling(period).mean()
+    std_dev = price_d.rolling(period).std()
+    zscore = (price_d - mid) / std_dev
+    width = (std_dev * std * 2) / mid.abs()
+    return zscore, width
+
+def atr_price_d(price_d, period=14):
+    """ATR simplificado para price_d (usa diferencia ventana 2)"""
+    high_low = price_d.rolling(2).max() - price_d.rolling(2).min()
+    return high_low.rolling(period).mean()
+
+def volume_imbalance(volume, price_d, period=20):
+    """Ratio volumen en velas positivas vs negativas"""
+    positive_vol = volume.where(price_d.diff() > 0, 0).rolling(period).sum()
+    negative_vol = volume.where(price_d.diff() < 0, 0).rolling(period).sum()
+    return (positive_vol - negative_vol) / (positive_vol + negative_vol + 1e-9)
+
+def vpt_price_d(volume, price_d, window=168):
+    """Volume Price Trend (Rolling) para mantener estacionariedad"""
+    vpt_raw = (volume * price_d.diff() / price_d)
+    return vpt_raw.rolling(window).sum()
+
+def stoch_price_d(price_d, k=14, d=3):
+    """Stochastic Oscillator sobre price_d"""
+    low_min = price_d.rolling(k).min()
+    high_max = price_d.rolling(k).max()
+    k_line = 100 * (price_d - low_min) / (high_max - low_min + 1e-9)
+    return k_line.rolling(d).mean()
+
+# LIMPIEZA Y ALINEACIÓN ====================
+
+def clean_and_align_data(input_dir, timeframe):
+    """Carga, pivotea y asegura alineación temporal perfecta"""
+    print(f"[DATA] Cargando y alineando archivos de tf: {timeframe}... ")
+    all_files = glob.glob(os.path.join(input_dir, "cmt_*.parquet")) 
+    
+    suffix = f"_{timeframe}"
+    files = [f for f in all_files if suffix in f]
+
+    if not files:
+        raise ValueError(f"No se encontraron archivos en {input_dir} en tf {timeframe}")
+    
     all_data = []
-
     for file in files:
-        ticker = os.path.basename(file).split('_raw')[0].replace('_', '-')
-        df = pd.read_csv(file, index_col=0, parse_dates=True)
+        filename = os.path.basename(file)
+        ticker = filename.replace('cmt_', '').replace(suffix, '').replace('.parquet', '')
+        df = pd.read_parquet(file)
+        df = df[~df.index.duplicated(keep='first')] #elimina duplicados
         df['ticker'] = ticker
-        # Eliminar duplicados en el índice por si acaso
-        df = df[~df.index.duplicated(keep='first')]
         all_data.append(df)
-
-    if not all_data:
-        raise ValueError("No se encontraron archivos csv en data/raw")
-
+    
+    # Concatenar
     full_df = pd.concat(all_data)
+    df_pivot = full_df.pivot_table( #creamos tabla ancha (btc | eth | xxx) (pivotar)
+        index=full_df.index, 
+        columns='ticker', 
+        values=['open', 'high', 'low', 'close', 'volume']
+    )
     
-    # Pivotar para crear una matriz temporal perfecta (todos los activos en las mismas filas)
-    df_pivot = full_df.pivot_table(index=full_df.index, columns='ticker', values=['Open', 'High', 'Low', 'Close', 'Volume'])
+    # Forward fill con max 3 huecos
+    df_pivot = df_pivot.ffill(limit=3)
     
-    # Rellenar huecos con el dato anterior (Forward Fill)
-    df_pivot = df_pivot.ffill()
-    
-    # Volver al formato largo (Filas: Fecha-Activo)
+    # volvemos desde tabla ancha a la larga (lo util para procesar por ML)
     df_stacked = df_pivot.stack(future_stack=True).reset_index()
-    df_stacked.rename(columns={'level_1': 'ticker'}, inplace=True)
-    df_stacked = df_stacked.set_index('Datetime').sort_index()
+    df_stacked.columns = ['timestamp', 'ticker', 'Open', 'High', 'Low', 'Close', 'Volume']
+    df_stacked = df_stacked.set_index('timestamp').sort_index()
+    
+    num_tickers = len(files)
+    # validacion timestamp con x tickers cada
+    counts = df_stacked.groupby('timestamp').size()
+    if not (counts == num_tickers).all():
+        print(f"[FATAL]: {len(counts[counts != num_tickers])} timestamps incompletos")
+        df_stacked = df_stacked.loc[counts[counts == num_tickers].index]
     
     return df_stacked
 
-def add_technical_indicators(df, use_frac_diff=True):
-    print(f"[DATA] calculando indicadores (FracDiff={use_frac_diff}) ---")
-    processed_dfs = []
+# FEATURE ENGINEERING ====================
 
+def add_technical_indicators(df, d=0.4, window=500, vpt_price_d_window=168):
+    """
+    Calcula TODOS los indicadores SOBRE price_d, luego neutraliza (comparando monedas entre si)
+    Neutralización: No queremos saber el valor absoluto de cierto indicador para un precio, sino saber que este valor es mejor que los demás (cross sectional)
+    """
+    print(f"[FEATURES] Calculando indicadores sobre FracDiff (d={d})...")
+    
+    processed = []
+    
     for ticker, group in df.groupby('ticker'):
         group = group.copy()
-        if use_frac_diff:
-            group['ml_feature_price'] = frac_diff_ffd(group['Close'], d=0.4)
-        else:
-            group['ml_feature_price'] = np.log(group['Close'] / group['Close'].shift(1))
-
-        group['rsi'] = group.ta.rsi(length=14)
-
-        bb = group.ta.bbands(length=20, std=2)
-        bbp_col = [c for c in bb.columns if c.startswith('BBP')][0]
-        group['bb_pos'] = bb[bbp_col]
-        bbb_col = [c for c in bb.columns if c.startswith('BBB')][0]
-        group['bb_width'] = bb[bbb_col]
-
-        atr = group.ta.atr(length=14)
-        group['norm_atr'] = atr / group['Close']
         
-        vol_mean = group['Volume'].rolling(24).mean()
-        vol_std = group['Volume'].rolling(24).std()
-        group['rel_vol'] = (group['Volume'] - vol_mean) / (vol_std.replace(0, 1) + 1e-9)
+        # FracDiff (truncamos primeros 500 datos)
+        price_d = fracdiff_fixed_window(group['Close'], d=d, window=window)
+        group = group.loc[price_d.index]  # alieamos
+        group['price_d'] = price_d.values
+        # Indicadores técnicos (sobre price_d)
+        group['rsi'] = rsi_price_d(group['price_d'], period=14)
+        group['zscore'], group['bb_width'] = bollinger_features(group['price_d'], period=20)
+        group['atr'] = atr_price_d(group['price_d'], period=14)
+        group['stoch'] = stoch_price_d(group['price_d'], k=14, d=3)
+        group['vpt'] = vpt_price_d(group['Volume'], group['price_d'], window=vpt_price_d_window)
+        group['vol_imbalance'] = volume_imbalance(group['Volume'], group['price_d'], period=20)
+        group['ret_vol_ratio'] = group['price_d'].diff() / (group['atr'] + 1e-9) # Ratio retorno/volatilidad
         
-        vwap = group.ta.vwap()
-        group['dist_vwap'] = np.log(group['Close'] / vwap)
-        
-        group['ret_vs_vol'] = group['ml_feature_price'] / (group['norm_atr'] + 1e-9)
-        
-        processed_dfs.append(group)
-
-    return pd.concat(processed_dfs).sort_index()
-
-def calculate_target_alpha(df, horizon=1):
-    """Definición del Target (Alpha Relativo)"""
-    print(f"[DATA] Calculando target ... (Alpha a {horizon}h) ---") #horizon: como de lejos quieres que el modelo prediga (en horas)
+        processed.append(group)
     
-    # 1. Calcular Retorno Futuro Real (Sin FracDiff, dinero real)
-    # shift(-horizon) mira hacia el futuro (traemos la info de las 10 a las 9 alinear causa (features) con efecto market_mean que ponemos luego en paso 2)
-    df['future_ret'] = df.groupby('ticker')['Close'].pct_change(horizon).shift(-horizon)
+    df_feat = pd.concat(processed).sort_index()
     
-    # 2. Calcular el Promedio del Mercado en ese futuro (Cross-Sectional Mean)
-    # Agrupamos por índice (fecha) para sacar la media de todos los activos en ese momento
-    market_mean = df.groupby(level=0)['future_ret'].transform('mean')
+    # NEUTRALIZACIÓN CROSS-SECTIONAL ====================
+    print("[FEATURES] Neutralizando features...")
     
-    # 3. Calcular Alpha
-    df['TARGET_ALPHA'] = df['future_ret'] - market_mean
+    feature_cols = ['rsi', 'zscore', 'bb_width', 'atr', 'stoch', 'vpt', 'vol_imbalance', 'ret_vol_ratio']
+    
+    for col in feature_cols:
+        # calcular El Promedio del Mercado
+        market_mean = df_feat.groupby('timestamp')[col].transform('mean')
+        
+        # calcular la posición relativa (Centrado) ***donde está***
+        # Restamos el promedio (media) a nuestra moneda. (nos dice la distancia)
+        # Si Resultado > 0: El indicador es MAYOR que el del resto (x.Ej: Tiene más volatilidad, o más RSI).
+        # Si Resultado < 0: El indicador es MENOR que el del resto (x.Ej: Está más tranquilo, o más sobrevendido).
+        centered_value = df_feat[col] - market_mean
+        # calculamos la desviacion std para calcular zscore
+        market_std = df_feat.groupby('timestamp')[col].transform('std')
+        
+        # calculamos el z-score para estandarizar  (para escalas) ***respecto del resto***
+        # +2.0 significa: "Extremadamente alto comparado con el resto".
+        # 0.0 significa: "Exactamente igual al promedio del mercado".
+        z_score_neutral = centered_value / (market_std + 1e-9)
+        
+        # save
+        df_feat[f'{col}_neutral'] = z_score_neutral
+
+    return df_feat
+
+# LABEL ENGINEERING (ALPHA) ====================
+
+def calculate_target_alpha(df, horizon=8, vol_window=168, timeframe='1h'):
+    """
+    Alpha relativo con vol scaling
+    ->¿Cuánto va a subir esta moneda en el futuro COMPARADO con el mercado y AJUSTADO por su riesgo?
+    """
+    print(f"[TARGET] Calculando Alpha (horizonte={horizon} velas, Vol Window={vol_window})...")
+    
+    # queremos entrenar modelo para que sepa lo que va a predecir el martes si hoy es lunes 
+    # (cogemos precio martes y lo movemos a lunes, asi ve indicadores de lunes pero respuesta de martes)
+    # calculamos cuanto cambiara el precio en las próximas 'horizon' velas.
+    future_return = df.groupby('ticker')['Close'].pct_change(periods=horizon).shift(-horizon)
+    
+    # neutralización de nuevo (alpha raw)
+    # si btc sube 5% pero mercado sube 10%, alpha es -5%. 
+    #tenemos neutralizacion en el target y en los indicadores :)
+    # market_mean = future_return.groupby(df.index).transform('mean')
+    valid_mask = future_return.notna()
+    future_return_clean = future_return.where(valid_mask)
+    market_mean = future_return_clean.groupby(df.index).transform(
+        lambda x: x.fillna(0).sum() / valid_mask.groupby(df.index).sum()
+    )
+    alpha_raw = future_return - market_mean
+    
+    # Volatility scaling 
+    # ojo: calculamos volatilidad usando SOLO datos pasados (shift 1)
+    # importante, ajusta para cada activo: 
+    # -moneda estable: raro que se mueva por ejemplo 1% (Alpha 1% / Vol 0.1%) = Puntuación 10.  (mas valor) 
+    # -moneda inestable: normal que se mueva 5% (Alpha 1% / Vol 5%) = Puntuación 0.2.
+    # dividimos por volatilidad para hacer un escalado en cuanto a la importancia
+    returns = df.groupby('ticker')['Close'].pct_change()
+
+    #shift(horizon) para que vol no "vea" el período del target Y rolling con min_periods para evitar arrastre
+    vol_1_period = returns.groupby(df['ticker']).shift(horizon).rolling(
+        window=vol_window,
+        min_periods=vol_window//2,
+        center=False  # Asegurar que no mira al futuro
+    ).std()
+    vol_horizon = vol_1_period
+    # vol_horizon = vol_1_period * np.sqrt(horizon)
+    alpha_risk_adjusted = alpha_raw / (vol_horizon + 1e-9)
+
+    """
+    Imagina que entrenas el modelo en 2022 (mercado bajista, volatilidad alta, Alpha std=0.3). 
+    Luego predices en 2023 (ranging, volatilidad baja, Alpha std=0.05). 
+    El modelo se vuelve loco porque el target cambió de escala.
+    """
+
+    # current_std = alpha_risk_adjusted.std() #normalizamos el Alpha a desviación estándar 0.1, sin importar como de volátil sea el período.
+    ref_std = alpha_risk_adjusted.iloc[:1000].std()
+    target_std = 0.1
+    # alpha_scaled = (alpha_risk_adjusted / current_std) * target_std
+    alpha_scaled = (alpha_risk_adjusted / ref_std) * target_std
+
+    clip_val = alpha_scaled.abs().quantile(0.99)
+    
+    # Clip extremos (outliers)
+    df['TARGET_ALPHA'] = np.clip(alpha_scaled, -clip_val, clip_val) # afecta exactamente 1% de outliers
+
+    lag1_corr = df['TARGET_ALPHA'].autocorr(lag=1)
+    print(f"[DEBUG] Alpha Autocorr (lag=1): {lag1_corr:.4f}")
+    if abs(lag1_corr) > 0.05:
+        print("[WARNING] Autocorr sigue alto, considera aumentar vol_window o horizon")
     
     return df
 
+def add_alpha_lag_features(df, horizon=24):
+    """
+    Usa Retorno Pasado Realizado como feature
+    El lag debe ser el Alpha de [t-horizon, t], que está 100% disponible en t
+    Añade lag del Alpha para modelar la autocorrelación NEGATIVA (reversión a la media).
 
+    El Alpha calculado muestra una autocorrelación de -0.13 (lag=1). Esto NO es un bug, 
+    es una PROPIEDAD DEL MERCADO: los activos que se desvían fuertemente del promedio 
+    en un período tienden a revertir hacia la media en el siguiente período.
+    
+    Si SOL superó al mercado en +5% en las últimas 4 horas, las siguientes 4 horas es 
+    estadísticamente más probable que SOL *underperform* para compensar esa desviación.
+    Esto es "reversión a la media" o "mean reversion".
+    
+    El lag feature le permite al modelo aprender.
+    
+    IMPORTANTE:
+    El lag DEBE ser neutralizado cross-sectional (alpha_lag1_neutral), 
+    de lo contrario el modelo aprendería "comprar perdedores" en vez de 
+    "comprar activos que revierten desde extremos relativos".
+    """
+ 
+    print(f"[FEATURES] Añadiendo Alpha Pasado (Reversión a la Media)...")
+    
+    # 1. Retorno PASADO (24h hacia atrás) [SAFE]
+    past_return = df.groupby('ticker')['Close'].pct_change(periods=horizon)
+    
+    # 2. Neutralización cross-sectional del PASADO (Centrar en 0)
+    market_mean_past = past_return.groupby(df.index).transform('mean')
+    alpha_past_raw = past_return - market_mean_past
+    
+    # 3. Vol scaling del PASADO (Ajustar por riesgo individual)
+    vol_past = df.groupby('ticker')['Close'].pct_change().rolling(horizon).std() * np.sqrt(horizon)
+    alpha_past_risk_adj = alpha_past_raw / (vol_past + 1e-9)
+    
+    # --- CAMBIO AQUÍ ---
+    # 4. Z-Score Cross-Sectional Final
+    # En lugar de usar una referencia estática (iloc[:1000]), forzamos a que
+    # EN CADA HORA, la distribución de los features sea Mean=0, Std=1.
+    # Esto hace que el modelo sea robusto a cambios de régimen de volatilidad.
+    
+    cs_mean = alpha_past_risk_adj.groupby(df.index).transform('mean')
+    cs_std = alpha_past_risk_adj.groupby(df.index).transform('std')
+    
+    df['alpha_past_neutral'] = (alpha_past_risk_adj - cs_mean) / (cs_std + 1e-9)
+    
+    # Clipping suave (opcional, para limpieza)
+    df['alpha_past_neutral'] = df['alpha_past_neutral'].clip(-4, 4)
+    
+    return df
 
+# PIPELINE PRINCIPAL ====================
 
-def process_pipeline(horizon=1, use_frac_diff=True):
+def process_pipeline(horizon=8, d=0.4, window=500, vpt_price_d_window=168, vol_window=168, timeframe='1h'):
+    """Ejecuta pipeline completo"""
     input_dir = "data/raw"
     output_dir = "data/processed"
-    df_clean = clean_and_align_data(input_dir)
-    df_features = add_technical_indicators(df_clean, use_frac_diff=use_frac_diff)
-    df_final = calculate_target_alpha(df_features, horizon=horizon)
-    df_final.dropna(inplace=True)
+    print(f"[PROCESSING DATA] " + "="*50)
+    print(f"[INFO] input_dir:{input_dir} -> output_dir:{output_dir} -- [OK]")
+    df_clean = clean_and_align_data(input_dir, timeframe=timeframe)
+    print(f"[INFO] Datos limpios: {len(df_clean)} filas")
     
-    # Seleccionamos solo lo que necesita el modelo
-    features = ['ml_feature_price', 'rsi', 'bb_pos', 'norm_atr', 'rel_vol'] # mas o menos ortogonales todos
-    cols_to_save = ['ticker'] + features + ['TARGET_ALPHA']
+    df_features = add_technical_indicators(df_clean, d=d, window=window, vpt_price_d_window=vpt_price_d_window)
+    print(f"[INFO] Features calculados: {len(df_features)} filas")
+    
+    df_final = calculate_target_alpha(df_features, horizon=horizon, vol_window=vol_window, timeframe=timeframe)
+
+    df_final = add_alpha_lag_features(df_final, horizon=horizon)
+
+    # Selección final (solo features neutrales + target)
+    feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
+    cols_to_save = ['ticker', 'Close'] + feature_cols + ['TARGET_ALPHA']
     
     final_dataset = df_final[cols_to_save]
+
+    rows_before = len(final_dataset)
+    final_dataset = final_dataset.dropna()
+    rows_after = len(final_dataset)
+
+    print(f"[INFO] Filas eliminadas por NaNs (Warm-up + Horizon): {rows_before - rows_after}")
     
+    # guardar
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "training_data.parquet")
-    
+    save_path = os.path.join(output_dir, f"training_data_{timeframe}.parquet")
     final_dataset.to_parquet(save_path)
     
-    print(f"[OK] Pipeline completado.")
+    print("\n" + "="*50)
+    print(f"[OK] PIPELINE COMPLETADO")
     print(f"Dimensiones: {final_dataset.shape}")
     print(f"Guardado en: {save_path}")
-    print(final_dataset.head())
+    print(f"Features finales: {len(feature_cols)}")
+    print(f"Rank de Alpha: {final_dataset['TARGET_ALPHA'].min():.4f} a {final_dataset['TARGET_ALPHA'].max():.4f}")
+    print("="*50)
+    
+    return final_dataset
 
 if __name__ == "__main__":
-    process_pipeline(horizon=4, use_frac_diff=True)
+    """
+    horizon: distancia al futuro que el modelo intenta adivinar
+    """
+    # df_final = process_pipeline(horizon=8, d=0.4, window=500, vpt_price_d_window = 168, vol_window=168, timeframe='1h') #8h
+    # df_final = process_pipeline(horizon=24, d=0.4, window=50, vpt_price_d_window = 24, vol_window=48, timeframe='1h') #24h
+    # df_final = process_pipeline(horizon=8, d=0.4, window=50, vpt_price_d_window = 24, vol_window=48, timeframe='1h') #8h
+    # df_final = process_pipeline(horizon=48, d=0.4, window=50, vpt_price_d_window=24, vol_window=96, timeframe='1h') #48h
+    df_final = process_pipeline(horizon=8,d=0.4, window=50,vpt_price_d_window=6,vol_window=12,timeframe='4h') # alpha_past_neutral (Spearman: -0.0498)
+
+    

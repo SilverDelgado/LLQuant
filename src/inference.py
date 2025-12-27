@@ -6,50 +6,53 @@ import joblib
 import os
 import json
 
-MODEL_PATH = "data/models/xgb_alpha_model.json"
-META_PATH = "data/models/model_metadata.joblib"
-DATA_PATH = "data/processed/training_data.parquet"
+MODEL_PATH = "data/models/alpha_xgboost.json"
+DATA_PATH = "data/processed/training_data_4h.parquet"
 
 def load_inference_artifacts():
-    """Carga el modelo entrenado y los metadatos necesarios."""
+    """Carga el modelo entrenado"""
     if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError("No hay modelo entrenado.")
+        raise FileNotFoundError(f"No hay modelo entrenado en {MODEL_PATH}")
     
-    metadata = joblib.load(META_PATH)
-    features = metadata["features"]
-    model = xgb.Booster()
+    model = xgb.XGBRegressor()
     model.load_model(MODEL_PATH)
-    print(f"[INFERENCIA] Modelo cargado. IC Score del entrenamiento: {metadata['ic']:.4f}")
-    return model, features
+    print(f"[INFERENCIA] Modelo cargado desde {MODEL_PATH}")
+    return model
 
 def get_latest_market_state():
     """
-    Simula la obtención de datos en tiempo real.
-    Toma la ÚLTIMA fila disponible de cada activo en tu dataset procesado.
+    Obtiene el último estado del mercado para cada activo.
+    Toma la última fila disponible de cada activo en el dataset procesado.
     """
     df = pd.read_parquet(DATA_PATH)
-    # Asumimos que la última fecha del dataset es "HOY"
-    last_date = df.index.max()
-    current_market = df.loc[last_date].copy()
-    print(f"[INFERENCIA] Analizando mercado fecha: {last_date}")
-    return current_market
+    
+    # Obtener la última fecha para cada ticker
+    latest = df.groupby('ticker').last()
+    
+    print(f"[INFERENCIA] Analizando {len(latest)} activos en el último estado del mercado")
+    return latest
 
 def generate_signals():
-    model, feature_names = load_inference_artifacts()
+    model = load_inference_artifacts()
     market_df = get_latest_market_state()
     
-    # Predecir; XGBoost nativo requiere DMatrix. Importante que feature_names asegura el orden correcto.
-    X_live = xgb.DMatrix(market_df[feature_names])
+    # Obtener features neutralizadas (las mismas que usamos en entrenamiento)
+    feature_cols = [c for c in market_df.columns if c.endswith('_neutral')]
+    print(f"[INFERENCIA] Usando {len(feature_cols)} features: {feature_cols}")
+    
+    X_live = market_df[feature_cols]
+    
+    # Predecir alpha con XGBRegressor
     preds = model.predict(X_live)
     
     market_df['PREDICTED_ALPHA'] = preds
     
-    # GENERAR RANKING; Ordenamos de Mayor Alpha a Menor Alpha
+    # Generar ranking: ordenar de mayor a menor alpha predicho
     ranking = market_df.sort_values(by='PREDICTED_ALPHA', ascending=False)
     
-    # === SALIDA PARA LLM, el Ranking===
+    # Salida para LLM
     llm_context = "### DATOS DEL MODELO CUANTITATIVO ###\n"
-    llm_context += f"Fecha del corte: {ranking.index[0]}\n\n"
+    llm_context += f"Total de activos analizados: {len(ranking)}\n\n"
     llm_context += "RANKING DE PREFERENCIA (De mejor a peor Alpha proyectado):\n"
     
     top_picks = []
@@ -57,16 +60,18 @@ def generate_signals():
     for i, (ticker, row) in enumerate(ranking.iterrows()):
         rank = i + 1
         alpha = row['PREDICTED_ALPHA']
-        line = f"#{rank} {row['ticker']} (Alpha: {alpha:.10f})"
+        line = f"#{rank} {ticker} (Alpha: {alpha:.6f})"
         llm_context += line + "\n"
         
         top_picks.append({
-            "ticker": row['ticker'],
+            "ticker": ticker,
             "rank": rank,
             "alpha": float(alpha)
         })
     
-    print("[INFERENCIA] INPUT GENERADO PARA EL AGENTE")
+    print("\n" + "="*60)
+    print("[INFERENCIA] RANKING GENERADO")
+    print("="*60)
     print(llm_context)
     
     return llm_context, top_picks
