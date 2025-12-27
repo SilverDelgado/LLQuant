@@ -23,8 +23,8 @@ Uso:
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from utils import _env
-from utils.market import (
+from api import _env
+from api.market import (
     get_candles,
     get_ticker_price,
     get_funding_rate,

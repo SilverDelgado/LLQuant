@@ -85,6 +85,7 @@ def main():
         position_side="long",  # Abrir posición long
         notional_value=10.0,  # 10 USDT de valor nocional
         price="0",  # Market price
+        message="Test order execution: Opening 10 USDT long position on BTC for API testing purposes.",
         locale=locale
     )
 

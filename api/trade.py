@@ -27,6 +27,96 @@ def _validate_symbol(symbol: str, verbose: bool = True) -> bool:
     return True
 
 
+def upload_ai_log(
+    api_key: str,
+    secret_key: str,
+    passphrase: str,
+    order_id: Optional[int] = None,
+    stage: str = "Strategy Generation",
+    model: str = "Trading Algorithm",
+    input_data: Optional[Dict[str, Any]] = None,
+    output_data: Optional[Dict[str, Any]] = None,
+    explanation: str = "",
+    locale: str = "en-US",
+    verbose: bool = True,
+) -> Optional[Dict[str, Any]]:
+    """
+    Sube un log de AI al endpoint de WEEX.
+    
+    Args:
+        api_key: Clave de API
+        secret_key: Clave secreta
+        passphrase: Contraseña de API
+        order_id: ID de la orden (opcional)
+        stage: Etapa del trading donde participó la AI
+        model: Nombre o versión del modelo de AI
+        input_data: Datos de entrada al modelo
+        output_data: Datos de salida del modelo
+        explanation: Explicación del razonamiento de la AI (máximo 1000 caracteres)
+        locale: Idioma
+        verbose: Mostrar información en consola
+    
+    Returns:
+        Diccionario con respuesta de la API, o None si hay error
+    """
+    if input_data is None:
+        input_data = {}
+    if output_data is None:
+        output_data = {}
+    
+    # Truncar explicación a 1000 caracteres
+    if len(explanation) > 1000:
+        explanation = explanation[:997] + "..."
+    
+    log_data = {
+        "orderId": order_id,
+        "stage": stage,
+        "model": model,
+        "input": input_data,
+        "output": output_data,
+        "explanation": explanation,
+    }
+    
+    if verbose:
+        print("\n[INFO] Subiendo log de AI...")
+        print(json.dumps(log_data, indent=2, ensure_ascii=False))
+        print()
+    
+    try:
+        resp = send_post(
+            api_key=api_key,
+            secret_key=secret_key,
+            passphrase=passphrase,
+            request_path="/capi/v2/order/uploadAiLog",
+            body_obj=log_data,
+            auth=True,
+            locale=locale,
+        )
+        
+        if verbose:
+            print(f"HTTP Status: {resp.status_code}")
+        
+        data = resp.json()
+        
+        if verbose:
+            print(json.dumps(data, indent=2, ensure_ascii=False))
+        
+        if resp.status_code == 200:
+            if isinstance(data, dict) and data.get("code") == "00000":
+                if verbose:
+                    print(f"\n✓ Log de AI subido exitosamente")
+                return data
+        
+        if verbose:
+            print(f"\n✗ Error al subir log de AI")
+        return data
+        
+    except Exception as e:
+        if verbose:
+            print(f"[ERROR] Error al subir log de AI: {e}")
+        return None
+
+
 def place_order(
     api_key: str,
     secret_key: str,
@@ -35,11 +125,12 @@ def place_order(
     position_side: str = "long",
     notional_value: float = 10.0,
     price: str = "0",
+    message: str = "",
     locale: str = "en-US",
     verbose: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """
-    Coloca una orden en el mercado.
+    Coloca una orden en el mercado y registra el log de AI.
     
     Args:
         api_key: Clave de API
@@ -49,6 +140,7 @@ def place_order(
         position_side: 'long' para compra o 'short' para venta
         notional_value: Valor nocional de la orden en USDT (ej: 10.0)
         price: Precio (0 para market orders, ignorado en órdenes de mercado)
+        message: Mensaje explicativo de la decisión de trading (para AI log)
         locale: Idioma
         verbose: Mostrar información en consola
     
@@ -162,16 +254,46 @@ def place_order(
         
         if resp.status_code == 200:
             # Validar que la orden fue exitosa
+            order_id = None
             if isinstance(data, dict):
                 if data.get("code") == "00000":
                     if verbose:
                         print(f"\n✓ Orden colocada exitosamente")
-                    return data
+                    order_id = data.get("data", {}).get("orderId") if isinstance(data.get("data"), dict) else None
                 elif "order_id" in data:
                     if verbose:
                         print(f"\n✓ Orden colocada exitosamente")
                         print(f"Order ID: {data.get('order_id')}")
-                    return data
+                    order_id = data.get("order_id")
+                
+                # Subir log de AI si hay mensaje
+                if message:
+                    input_data = {
+                        "symbol": symbol,
+                        "position_side": position_side,
+                        "notional_value": notional_value,
+                        "price": current_price,
+                    }
+                    output_data = {
+                        "signal": position_side.upper(),
+                        "size": size_str,
+                        "actual_notional": actual_notional,
+                    }
+                    upload_ai_log(
+                        api_key=api_key,
+                        secret_key=secret_key,
+                        passphrase=passphrase,
+                        order_id=order_id,
+                        stage="Order Execution",
+                        model="Trading System",
+                        input_data=input_data,
+                        output_data=output_data,
+                        explanation=message,
+                        locale=locale,
+                        verbose=verbose,
+                    )
+                
+                return data
             else:
                 if verbose:
                     print(f"\n✗ Error al colocar orden: respuesta inesperada")
@@ -360,6 +482,7 @@ def close_position(
 
 __all__ = [
     '_validate_symbol',
+    'upload_ai_log',
     'place_order',
     'get_positions',
     'close_position',
