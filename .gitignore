@@ -2,3 +2,8 @@ README.pdf
 uv.lock
 .env
 src/__pycache__/
+api/__pycache__/__init__.cpython-312.pyc
+api/__pycache__/market.cpython-312.pyc
+data/__pycache__/__init__.cpython-312.pyc
+data/processed/training_data_4h.parquet
+data/processed/__pycache__/validate_look_ahead.cpython-312.pyc

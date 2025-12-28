@@ -13,16 +13,16 @@ import numpy as np
 import xgboost as xgb
 from sklearn.model_selection import TimeSeriesSplit
 from scipy.stats import spearmanr
-import shap
 import warnings
 warnings.filterwarnings('ignore')
 
 FEATURES = [
-    'ml_feature_price', 
-    'rsi', 
-    'bb_pos', 
-    'norm_atr', 
-    'rel_vol'
+    'alpha_past_neutral',  # (-0.05)
+    'vpt_neutral',         # (-0.03)
+    'zscore_neutral',      # (+0.02)
+    'rsi_neutral',         # (+0.018)
+    'atr_neutral',         # (+0.016)
+    'ret_vol_ratio_neutral' # (+0.018)
 ]
 
 
@@ -38,8 +38,8 @@ def train_alpha_model():
     # Features y target
     feature_cols = [c for c in df.columns if c.endswith('_neutral')]
     print(f"[INFO] Features: {len(feature_cols)} -> {feature_cols}")
-    
-    X = df[feature_cols]
+    print(f"[INFO] Selected features: {FEATURES}")
+    X = df[FEATURES]
     y = df['TARGET_ALPHA']
     
     # TimeSeriesSplit (NO shuffle)
@@ -47,7 +47,6 @@ def train_alpha_model():
     
     # Métricas
     rankics = []
-    shap_importances = []
     
     # Modelo
     model = xgb.XGBRegressor(
@@ -93,23 +92,17 @@ def train_alpha_model():
         rankics.append(mean_rankic)
         print(f"  RankIC medio: {mean_rankic:.4f}")
     
-    # Resultados finales
-    print("\n" + "="*60)
-    print(f"🏆 RANKIC PROMEDIO: {np.mean(rankics):.4f} ± {np.std(rankics):.4f}")
-    print(f"📊 CONSISTENCIA: {np.mean([r > 0 for r in rankics]):.1%}")
-    print("="*60)
     
-    # Importancia de features
-    print("\n[FEATURE IMPORTANCE] SHAP Values:")
-    importance_dict = dict(zip(feature_cols, shap_importances))
-    for feat, imp in sorted(importance_dict.items(), key=lambda x: x[1], reverse=True):
-        print(f"{feat:25s}: {imp:.4f}")
+    print("\n" + "="*60)
+    print(f"[RESULTS] RANKIC PROMEDIO: {np.mean(rankics):.4f} ± {np.std(rankics):.4f}")
+    print(f"[RESULTS] CONSISTENCIA: {np.mean([r > 0 for r in rankics]):.1%}")
+    print("="*60)
     
     # Guardar modelo
     model.get_booster().save_model("data/models/alpha_xgboost.json")
     print("[OK] Modelo guardado en: data/models/alpha_xgboost.json")
     
-    return model, importance_dict, rankics
+    return model, rankics
 
 if __name__ == "__main__":
     train_alpha_model()
