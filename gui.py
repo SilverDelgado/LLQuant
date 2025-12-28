@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
 from dotenv import load_dotenv
@@ -47,7 +47,7 @@ class DashboardState:
 	account: Optional[Dict[str, Any]] = None
 	prices: Dict[str, Optional[float]] = field(default_factory=dict)
 	positions: Dict[str, Any] = field(default_factory=dict)
-	last_update: datetime = field(default_factory=datetime.utcnow)
+	last_update: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 	error: Optional[str] = None
 
 
@@ -117,7 +117,7 @@ def fetch_snapshot(symbols: Iterable[str], creds: Dict[str, str]) -> DashboardSt
 		except Exception as exc:  # pragma: no cover - defensive
 			state.error = f"Error al leer posiciones: {exc}"
 
-	state.last_update = datetime.utcnow()
+	state.last_update = datetime.now(timezone.utc)
 	return state
 
 
@@ -133,19 +133,35 @@ def build_account_panel(account: Optional[Dict[str, Any]]) -> Panel:
 	data = account.get("data") if isinstance(account, dict) else None
 	data = data or account
 
-	table.add_row("total_equity", safe_float(data.get("total_equity", "--")))
-	table.add_row("balance", safe_float(data.get("balance", "--")))
-	table.add_row("unrealized_pnl", safe_float(data.get("unrealized_pnl", "--")))
-	table.add_row("realised_pnl", safe_float(data.get("realised_pnl", "--")))
+	if isinstance(data, dict):
+		table.add_row("total_equity", safe_float(data.get("total_equity", "--")))
+		table.add_row("balance", safe_float(data.get("balance", "--")))
+		table.add_row("unrealized_pnl", safe_float(data.get("unrealized_pnl", "--")))
+		table.add_row("realised_pnl", safe_float(data.get("realised_pnl", "--")))
 
-	coins = data.get("coins") if isinstance(data, dict) else None
+		coins = data.get("coins") if isinstance(data, dict) else None
+	else:
+		# Assume data is a list of coins, calculate totals from coins
+		coins = data if isinstance(data, list) else None
+		if coins:
+			total_equity = sum(float(coin.get("available", 0)) + float(coin.get("frozen", 0)) for coin in coins if isinstance(coin, dict))
+			balance = sum(float(coin.get("available", 0)) for coin in coins if isinstance(coin, dict))
+			table.add_row("total_equity", safe_float(total_equity))
+			table.add_row("balance", safe_float(balance))
+			table.add_row("unrealized_pnl", "--")
+			table.add_row("realised_pnl", "--")
+		else:
+			table.add_row("total_equity", "--")
+			table.add_row("balance", "--")
+			table.add_row("unrealized_pnl", "--")
+			table.add_row("realised_pnl", "--")
 	if coins:
 		coins_table = Table(title="Activos", show_edge=False, show_header=True, expand=True)
 		coins_table.add_column("Moneda", style="cyan", no_wrap=True)
 		coins_table.add_column("Disponible", justify="right")
 		coins_table.add_column("En uso", justify="right")
 		for coin in coins:
-			symbol = str(coin.get("coin", "?")).upper()
+			symbol = str(coin.get("currency", coin.get("coin", coin.get("symbol", "?")))).upper()
 			avail = safe_float(coin.get("available", 0))
 			frozen = safe_float(coin.get("frozen", 0))
 			coins_table.add_row(symbol, avail, frozen)

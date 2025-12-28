@@ -23,14 +23,12 @@ from datetime import datetime
 # Agregar src al path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from src.data import get_structured_data, get_unstructured_data, prepare_full_payload
+from src.data import get_structured_data, get_unstructured_data, prepare_full_payload, get_df_data
 from src.risk_manager import motor_de_riesgo
 from src.llm import get_llm_analysis
+from src.inference import generate_signals
+from src.execution import rebalance_portfolio, get_credentials, close_all_positions
 from api import ALLOWED_SYMBOLS
-# from src.black_litterman import apply_black_litterman
-# from src.execution import execute_rebalance
-# from src.train_ml import get_initial_portfolio
-
 
 # ======================= CONFIGURACIÓN =======================
 
@@ -47,6 +45,7 @@ CONFIG = {
     "rebalance_threshold": 0.02,  # 2%
     "check_interval": 3600,  # 1 hora
     "max_loops": None,  # None = infinito
+    "execution_mode": "both",  # longonly | shortonly | both
 }
 
 
@@ -58,6 +57,9 @@ def acquire_market_data(symbol: str) -> Optional[Dict[str, Any]]:
     
     Obtiene datos estructurados (OHLCV, indicadores técnicos) y no 
     estructurados (noticias, funding rates) del mercado.
+    
+    NOTA: Las señales cuantitativas se generan UNA VEZ para todos los símbolos,
+    no símbolo por símbolo (ver acquire_all_market_data).
     """
     try:
         logger.info(f"📊 Adquiriendo datos para {symbol}...")
@@ -74,6 +76,55 @@ def acquire_market_data(symbol: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"✗ Error adquiriendo datos para {symbol}: {e}")
         return None
+
+
+def acquire_all_market_data(symbols: list) -> Dict[str, Any]:
+    """
+    Adquiere datos de todos los símbolos y genera señales cuantitativas.
+    
+    Las señales ML se generan UNA VEZ para todos los activos simultáneamente
+    (no símbolo por símbolo) ya que requieren neutralización cross-sectional.
+    """
+    market_data = {}
+    
+    # 1. Obtener datos estructurados/no estructurados por símbolo
+    for symbol in symbols:
+        data = acquire_market_data(symbol)
+        if data:
+            market_data[symbol] = data
+    
+    if not market_data:
+        return {}
+    
+    # 2. Generar señales cuantitativas para TODOS los símbolos a la vez
+    try:
+        logger.info("🤖 Generando señales cuantitativas (ML)...")
+        ml_dataset = get_df_data(
+            symbols=list(market_data.keys()), 
+            timeframe="4h",
+            horizon=8,
+            d=0.4,
+            window=50,
+            vpt_price_d_window=6,
+            vol_window=12,
+            limit=600,
+            verbose=False,
+            inference_mode=True
+        )
+        llm_context, top_picks = generate_signals(market_df=ml_dataset)
+        
+        # Distribuir señales a cada símbolo
+        for symbol in market_data:
+            market_data[symbol]["quant_signals"] = {
+                "llm_context": llm_context,
+                "top_picks": top_picks,
+            }
+        logger.info(f"✓ Señales cuantitativas generadas para {len(top_picks)} activos")
+    except Exception as e:
+        logger.error(f"Error generando señales ML: {e}")
+        # Continuar sin señales cuantitativas
+    
+    return market_data
 
 
 def get_initial_portfolio(market_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -95,6 +146,53 @@ def get_initial_portfolio(market_data: Dict[str, Any]) -> Dict[str, Any]:
     return initial_portfolio
 
 
+def _extract_top_picks(market_data: Dict[str, Any]) -> list:
+    """Recupera el ranking cuantitativo ya generado por generate_signals."""
+
+    for data in market_data.values():
+        quant = data.get("quant_signals") if isinstance(data, dict) else None
+        top_picks = quant.get("top_picks") if quant else None
+        if top_picks:
+            return top_picks
+    return []
+
+
+def _quant_fallback_llm_output(
+    market_data: Dict[str, Any],
+    base_portfolio: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Fallback determinista basado en ranking cuantitativo, no aleatorio."""
+
+    assets = list(market_data.keys()) if market_data else []
+    num_assets = len(assets) or len(base_portfolio.get("conviction_scores", [])) or 3
+
+    top_picks = _extract_top_picks(market_data)
+    rank_map = {str(p.get("ticker")): p.get("rank") for p in top_picks if "ticker" in p}
+
+    def score_from_rank(rank: Optional[int]) -> float:
+        if not rank:
+            return 0.52
+        # Escala decreciente desde 0.82
+        return max(0.52, 0.82 - 0.05 * (rank - 1))
+
+    conviction_scores = []
+    for sym in assets:
+        conviction_scores.append(score_from_rank(rank_map.get(sym)))
+
+    if not conviction_scores:
+        conviction_scores = [0.52] * num_assets
+
+    top_line = ", ".join(str(p.get("ticker", "?")) for p in top_picks[:3]) if top_picks else "sin ranking"
+
+    return {
+        "should_rebalance": True,
+        "recommendation": "Gemini no respondió; se usa ranking cuantitativo para rebalancear ligero.",
+        "conviction_scores": conviction_scores,
+        "confidence": 0.58,
+        "rationale": f"Fallback cuantitativo: prioriza top alpha ({top_line})."
+    }
+
+
 def enhance_with_llm(market_data: Dict[str, Any], base_portfolio: Dict[str, Any]) -> Dict[str, Any]:
     """
     Fase 3: Mejora con LLM (Gemini)
@@ -104,20 +202,32 @@ def enhance_with_llm(market_data: Dict[str, Any], base_portfolio: Dict[str, Any]
     """
     logger.info("🧠 Analizando con LLM (Gemini)...")
     
+    fallback_llm = _quant_fallback_llm_output(market_data, base_portfolio)
+
     try:
         llm_analysis = get_llm_analysis(market_data, base_portfolio)
+        expected_assets = len(market_data) if market_data else len(base_portfolio.get("conviction_scores", []))
+        if (
+            "error" in llm_analysis.get("recommendation", "").lower()
+            or llm_analysis.get("confidence", 0.0) <= 0.0
+            or len(llm_analysis.get("conviction_scores", [])) != expected_assets
+        ):
+            logger.warning("Gemini falló o devolvió datos incompletos; usando fallback cuantitativo.")
+            llm_analysis = fallback_llm
         logger.info(f"✓ Análisis LLM completado - Rebalancear: {llm_analysis['should_rebalance']}")
         return llm_analysis
     except Exception as e:
         logger.error(f"Error en análisis LLM: {e}")
-        # Fallback conservador
-        return {
-            "should_rebalance": False,
-            "recommendation": "Error en LLM, usando pesos actuales",
-            "conviction_scores": base_portfolio.get("conviction_scores", [0.5] * len(market_data)),
-            "confidence": 0.3,
-            "rationale": "Fallback a valores por defecto"
-        }
+        return fallback_llm
+
+
+def _normalize_weights(weights: Dict[str, float]) -> Dict[str, float]:
+    """Normaliza pesos para que la suma de valores absolutos sea 1."""
+
+    total_abs = sum(abs(v) for v in weights.values())
+    if total_abs == 0:
+        return {k: 0.0 for k in weights}
+    return {k: v / total_abs for k, v in weights.items()}
 
 
 def apply_risk_controls(
@@ -181,20 +291,44 @@ def execute_rebalance(
     
     Envía órdenes al mercado basadas en los pesos optimizados.
     
-    TODO: Integrar con execution.py para colocar órdenes
     """
     if not should_rebalance:
         logger.info("⏭️  Rebalanceo no necesario, esperando...")
         return False
-    
-    logger.info("🚀 Ejecutando rebalanceo...")
-    
-    # Placeholder - será reemplazado con ejecución real
-    for symbol, weight in optimized_portfolio["weights"].items():
-        logger.info(f"   → {symbol}: {weight*100:.1f}%")
-    
-    logger.info("✓ Rebalanceo completado")
+
+    weights = optimized_portfolio.get("weights", {})
+    if not weights:
+        logger.warning("No hay pesos optimizados disponibles; se omite ejecución.")
+        return False
+
+    target_weights = _normalize_weights(weights)
+    mode = CONFIG.get("execution_mode", "both")
+
+    api_key, secret_key, passphrase, locale = get_credentials()
+    if not api_key:
+        logger.warning("Credenciales de API no configuradas; ejecución omitida.")
+        return False
+
+    logger.info("🚀 Ejecutando rebalanceo real vía execution.py...")
+    rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights, mode)
+    logger.info("✓ Rebalanceo enviado al mercado")
     return True
+
+
+def _close_positions_on_exit():
+    """Cierra todas las posiciones al terminar el proceso, si hay credenciales."""
+
+    api_key, secret_key, passphrase, locale = get_credentials()
+    if not api_key:
+        logger.warning("Sin credenciales de API; no se cierran posiciones en salida.")
+        return
+
+    try:
+        logger.info("🔻 Cerrando posiciones abiertas antes de salir...")
+        close_all_positions(api_key, secret_key, passphrase, locale)
+        logger.info("✓ Posiciones cerradas")
+    except Exception as e:
+        logger.error(f"Error al cerrar posiciones en salida: {e}")
 
 
 def main():
@@ -212,12 +346,8 @@ def main():
         logger.info(f"\n[CICLO {loop_count}] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         try:
-            # 1️⃣ Adquisición de datos
-            market_data = {}
-            for symbol in CONFIG["symbols"]:
-                data = acquire_market_data(symbol)
-                if data:
-                    market_data[symbol] = data
+            # 1️⃣ Adquisición de datos (incluyendo señales cuantitativas)
+            market_data = acquire_all_market_data(CONFIG["symbols"])
             
             if not market_data:
                 logger.warning("No se pudieron adquirir datos, reintentando...")
@@ -256,6 +386,8 @@ def main():
         except Exception as e:
             logger.error(f"Error en ciclo {loop_count}: {e}", exc_info=True)
             time.sleep(CONFIG["check_interval"])
+
+    _close_positions_on_exit()
 
 
 if __name__ == "__main__":

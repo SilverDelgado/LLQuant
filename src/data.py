@@ -21,8 +21,10 @@ Uso:
     unstructured = get_unstructured_data("cmt_btcusdt")
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
+import pandas as pd
+from processing import process_pipeline
 from api import _env
 from api.market import (
     get_candles,
@@ -32,6 +34,22 @@ from api.market import (
     get_contract_info,
 )
 from noticias import get_market_news
+from utils import (
+    calculate_slope,
+    identify_trend,
+    get_support_resistance,
+    calculate_sma,
+    calculate_ema,
+    calculate_rsi,
+    calculate_macd,
+    calculate_bollinger_bands,
+    analyze_bollinger_position,
+    analyze_rsi_context,
+    calculate_proximity,
+    detect_candle_pattern,
+    analyze_timeframe_semantic,
+    calculate_metrics,
+)
 
 
 # ======================== MAPEO DE SÍMBOLOS A NOMBRES ========================
@@ -47,660 +65,8 @@ SYMBOL_TO_NAME = {
     "cmt_ltcusdt": "Litecoin"
 }
 
-
-# ======================== FUNCIONES DE ANÁLISIS SEMÁNTICO ========================
-
-def calculate_slope(values: List[float], lookback: int = 3) -> str:
-    """
-    Calcula la pendiente de un indicador basándose en los últimos N valores.
-    
-    Args:
-        values: Lista de valores del indicador
-        lookback: Número de valores anteriores a comparar (por defecto 3)
-    
-    Returns:
-        "Rising", "Falling" o "Flat" basado en la tendencia
-    
-    Ejemplo:
-        >>> prices = [100, 102, 101, 103, 105]
-        >>> slope = calculate_slope(prices)
-        >>> print(slope)  # "Rising"
-    """
-    if len(values) < lookback + 1:
-        return "Insufficient Data"
-    
-    recent_values = values[-lookback:]
-    first = recent_values[0]
-    last = recent_values[-1]
-    
-    # Calcular cambio porcentual
-    change_pct = ((last - first) / first) * 100 if first != 0 else 0
-    
-    if change_pct > 1:  # Umbral de 1% para evitar ruido
-        return "Rising"
-    elif change_pct < -1:
-        return "Falling"
-    else:
-        return "Flat"
-
-
-def identify_trend(price: float, sma_50: Optional[float], sma_200: Optional[float]) -> str:
-    """
-    Identifica la tendencia general comparando el precio con las medias móviles.
-    
-    Args:
-        price: Precio actual
-        sma_50: Media móvil de 50 períodos
-        sma_200: Media móvil de 200 períodos
-    
-    Returns:
-        String descriptivo de la tendencia
-    
-    Ejemplo:
-        >>> trend = identify_trend(65000, 62000, 60000)
-        >>> print(trend)  # "Strong Uptrend"
-    """
-    # Si no hay SMA(50), no podemos determinar la tendencia
-    if sma_50 is None:
-        return "Insufficient Data"
-    
-    # Comparar precio con SMA(50) como mínimo
-    above_sma50 = price > sma_50
-    
-    # Si tenemos SMA(200), hacer análisis más profundo
-    if sma_200 is not None:
-        above_sma200 = price > sma_200
-        sma50_above_sma200 = sma_50 > sma_200
-        
-        if above_sma50 and above_sma200 and sma50_above_sma200:
-            return "Strong Uptrend (Price > SMA50 > SMA200)"
-        elif above_sma50 and above_sma200:
-            return "Uptrend (Price > Both SMAs)"
-        elif not above_sma50 and not above_sma200 and not sma50_above_sma200:
-            return "Strong Downtrend (Price < SMA50 < SMA200)"
-        elif not above_sma50 and not above_sma200:
-            return "Downtrend (Price < Both SMAs)"
-        elif above_sma50 and sma50_above_sma200:
-            return "Bullish Structure (SMA50 > SMA200)"
-        else:
-            return "Mixed/Consolidation Phase"
-    else:
-        # Fallback: solo usar SMA(50) si SMA(200) no está disponible
-        if above_sma50:
-            return "Bullish (Price > SMA50)"
-        else:
-            return "Bearish (Price < SMA50)"
-
-
-def get_support_resistance(candles: List[list], lookback: int = 50) -> Dict[str, float]:
-    """
-    Identifica niveles de soporte y resistencia basados en highs/lows recientes.
-    
-    Args:
-        candles: Lista de velas [timestamp, open, high, low, close, volume]
-        lookback: Número de velas anteriores a analizar
-    
-    Returns:
-        Diccionario con "support" y "resistance"
-    
-    Ejemplo:
-        >>> levels = get_support_resistance(candles)
-        >>> print(f"Support: ${levels['support']:,.2f}")
-    """
-    if not candles or len(candles) < lookback:
-        return {"support": None, "resistance": None}
-    
-    recent_candles = candles[-lookback:]
-    
-    highs = [float(c[2]) for c in recent_candles]
-    lows = [float(c[3]) for c in recent_candles]
-    
-    resistance = max(highs)
-    support = min(lows)
-    
-    return {
-        "support": support,
-        "resistance": resistance,
-        "range": resistance - support
-    }
-
-
-# ======================== INDICADORES TÉCNICOS ========================
-
-def calculate_sma(prices: List[float], period: int) -> Optional[float]:
-    """
-    Calcula la Media Móvil Simple (SMA).
-    
-    Args:
-        prices: Lista de precios
-        period: Período de la media móvil
-    
-    Returns:
-        Valor de la SMA o None si no hay suficientes datos
-    """
-    if len(prices) < period:
-        return None
-    return sum(prices[-period:]) / period
-
-
-def calculate_ema(prices: List[float], period: int) -> Optional[float]:
-    """
-    Calcula la Media Móvil Exponencial (EMA).
-    
-    Args:
-        prices: Lista de precios
-        period: Período de la EMA
-    
-    Returns:
-        Valor de la EMA o None si no hay suficientes datos
-    """
-    if len(prices) < period:
-        return None
-    
-    multiplier = 2 / (period + 1)
-    ema = sum(prices[:period]) / period  # Primera EMA es una SMA
-    
-    for price in prices[period:]:
-        ema = (price * multiplier) + (ema * (1 - multiplier))
-    
-    return ema
-
-
-def calculate_rsi(prices: List[float], period: int = 14) -> Optional[float]:
-    """
-    Calcula el Índice de Fuerza Relativa (RSI).
-    
-    Args:
-        prices: Lista de precios de cierre
-        period: Período del RSI (por defecto 14)
-    
-    Returns:
-        Valor del RSI (0-100) o None si no hay suficientes datos
-    """
-    if len(prices) < period + 1:
-        return None
-    
-    # Calcular cambios de precio
-    deltas = [prices[i] - prices[i-1] for i in range(1, len(prices))]
-    
-    # Separar ganancias y pérdidas
-    gains = [d if d > 0 else 0 for d in deltas[-period:]]
-    losses = [-d if d < 0 else 0 for d in deltas[-period:]]
-    
-    avg_gain = sum(gains) / period
-    avg_loss = sum(losses) / period
-    
-    if avg_loss == 0:
-        return 100
-    
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    
-    return rsi
-
-
-def calculate_macd(prices: List[float], 
-                   fast_period: int = 12, 
-                   slow_period: int = 26, 
-                   signal_period: int = 9) -> Optional[Dict[str, float]]:
-    """
-    Calcula el MACD (Moving Average Convergence Divergence).
-    
-    Args:
-        prices: Lista de precios de cierre
-        fast_period: Período de la EMA rápida (por defecto 12)
-        slow_period: Período de la EMA lenta (por defecto 26)
-        signal_period: Período de la línea de señal (por defecto 9)
-    
-    Returns:
-        Diccionario con MACD, señal e histograma o None si no hay suficientes datos
-    """
-    if len(prices) < slow_period:
-        return None
-    
-    # Calcular EMAs
-    ema_fast = calculate_ema(prices, fast_period)
-    ema_slow = calculate_ema(prices, slow_period)
-    
-    if ema_fast is None or ema_slow is None:
-        return None
-    
-    # MACD = EMA rápida - EMA lenta
-    macd_line = ema_fast - ema_slow
-    
-    # Para simplificar, usamos SMA como señal (idealmente sería EMA del MACD)
-    # En una implementación completa, necesitaríamos calcular MACD histórico
-    signal_line = macd_line  # Simplificación
-    histogram = macd_line - signal_line
-    
-    return {
-        "macd": macd_line,
-        "signal": signal_line,
-        "histogram": histogram
-    }
-
-
-def calculate_bollinger_bands(prices: List[float], 
-                               period: int = 20, 
-                               std_dev: int = 2) -> Optional[Dict[str, float]]:
-    """
-    Calcula las Bandas de Bollinger.
-    
-    Args:
-        prices: Lista de precios de cierre
-        period: Período de la media móvil (por defecto 20)
-        std_dev: Número de desviaciones estándar (por defecto 2)
-    
-    Returns:
-        Diccionario con banda superior, media e inferior o None
-    """
-    if len(prices) < period:
-        return None
-    
-    sma = calculate_sma(prices, period)
-    if sma is None:
-        return None
-    
-    # Calcular desviación estándar
-    variance = sum((p - sma) ** 2 for p in prices[-period:]) / period
-    std = variance ** 0.5
-    
-    return {
-        "upper": sma + (std * std_dev),
-        "middle": sma,
-        "lower": sma - (std * std_dev)
-    }
-
-
-def calculate_bollinger_bands(prices: List[float], 
-                               period: int = 20, 
-                               std_dev: int = 2) -> Optional[Dict[str, float]]:
-    """
-    Calcula las Bandas de Bollinger.
-    
-    Args:
-        prices: Lista de precios de cierre
-        period: Período de la media móvil (por defecto 20)
-        std_dev: Número de desviaciones estándar (por defecto 2)
-    
-    Returns:
-        Diccionario con banda superior, media e inferior o None
-    """
-    if len(prices) < period:
-        return None
-    
-    sma = calculate_sma(prices, period)
-    if sma is None:
-        return None
-    
-    # Calcular desviación estándar
-    variance = sum((p - sma) ** 2 for p in prices[-period:]) / period
-    std = variance ** 0.5
-    
-    return {
-        "upper": sma + (std * std_dev),
-        "middle": sma,
-        "lower": sma - (std * std_dev)
-    }
-
-
-def analyze_bollinger_position(price: float, bollinger: Dict[str, float]) -> Dict[str, Any]:
-    """
-    Analiza la posición del precio respecto a las Bandas de Bollinger.
-    
-    Args:
-        price: Precio actual
-        bollinger: Diccionario con upper, middle, lower
-    
-    Returns:
-        Diccionario con análisis semántico
-    """
-    if not bollinger or price is None:
-        return {"status": "No Data", "distance_pct": None}
-    
-    upper = bollinger.get("upper", 0)
-    lower = bollinger.get("lower", 0)
-    middle = bollinger.get("middle", 0)
-    band_width = upper - lower
-    
-    if band_width == 0:
-        return {"status": "Invalid", "distance_pct": None}
-    
-    # Distancia del precio a cada banda (en porcentaje)
-    dist_to_upper_pct = ((upper - price) / band_width) * 100
-    dist_to_lower_pct = ((price - lower) / band_width) * 100
-    
-    # Determinar posición
-    if dist_to_upper_pct < 5:
-        status = "Testing Upper Band - Possible Breakout"
-    elif dist_to_lower_pct < 5:
-        status = "Testing Lower Band - Possible Reversal"
-    elif price > middle:
-        status = "Upper Half - Bullish Bias"
-    else:
-        status = "Lower Half - Bearish Bias"
-    
-    # Ancho de banda (volatilidad implícita)
-    band_width_pct = (band_width / middle) * 100 if middle > 0 else 0
-    if band_width_pct < 3:
-        volatility_implication = "Tight Bands - Low Volatility, Breakout Expected"
-    elif band_width_pct > 10:
-        volatility_implication = "Wide Bands - High Volatility"
-    else:
-        volatility_implication = "Normal Band Width"
-    
-    return {
-        "status": status,
-        "distance_to_upper_pct": round(dist_to_upper_pct, 2),
-        "distance_to_lower_pct": round(dist_to_lower_pct, 2),
-        "band_width_pct": round(band_width_pct, 2),
-        "volatility_implication": volatility_implication
-    }
-
-
-def analyze_rsi_context(rsi: float, rsi_history: List[float] = None) -> Dict[str, str]:
-    """
-    Analiza el contexto del RSI: nivel, momentum y divergencia.
-    
-    Args:
-        rsi: Valor actual del RSI
-        rsi_history: Últimos valores del RSI para detectar momentum
-    
-    Returns:
-        Diccionario con interpretaciones de texto
-    """
-    if rsi is None:
-        return {"level": "No Data", "momentum": "N/A", "overall": "N/A"}
-    
-    # Analizar nivel
-    if rsi > 70:
-        level = "Overbought"
-        level_context = "Potential correction or consolidation"
-    elif rsi < 30:
-        level = "Oversold"
-        level_context = "Potential bounce or reversal"
-    elif rsi > 60:
-        level = "Strong"
-        level_context = "Upside momentum present"
-    elif rsi < 40:
-        level = "Weak"
-        level_context = "Downside momentum present"
-    else:
-        level = "Neutral"
-        level_context = "No extreme reading"
-    
-    # Analizar momentum si hay histórico
-    momentum = "N/A"
-    if rsi_history and len(rsi_history) >= 2:
-        recent_slope = calculate_slope(rsi_history, lookback=2)
-        if recent_slope == "Rising":
-            momentum = "Increasing - Strength Building"
-        elif recent_slope == "Falling":
-            momentum = "Decreasing - Strength Waning"
-        else:
-            momentum = "Stable"
-    
-    overall = f"{level} ({level_context}) - Momentum: {momentum}"
-    
-    return {
-        "level": level,
-        "context": level_context,
-        "momentum": momentum,
-        "overall": overall
-    }
-
-
-def calculate_proximity(price: float, support: float, resistance: float) -> Dict[str, str]:
-    """
-    Calcula la distancia porcentual del precio al soporte y resistencia.
-    Ayuda al LLM a entender qué tan cerca está de los niveles clave.
-    
-    Args:
-        price: Precio actual
-        support: Nivel de soporte
-        resistance: Nivel de resistencia
-    
-    Returns:
-        Diccionario con distancia % formateada
-    """
-    if support is None or resistance is None or price is None:
-        return {"to_support": "N/A", "to_resistance": "N/A", "zone": "N/A"}
-    
-    # Distancia en % desde el soporte y la resistencia
-    range_width = resistance - support
-    if range_width == 0:
-        return {"to_support": "N/A", "to_resistance": "N/A", "zone": "Invalid"}
-    
-    dist_to_support_pct = ((price - support) / range_width) * 100
-    dist_to_resistance_pct = ((resistance - price) / range_width) * 100
-    
-    # Determinar zona
-    if dist_to_support_pct < 20:
-        zone = "Near Support - Potential Bounce Zone"
-    elif dist_to_resistance_pct < 20:
-        zone = "Near Resistance - Potential Rejection Zone"
-    elif dist_to_support_pct < 40:
-        zone = "Mid-Lower Zone"
-    elif dist_to_resistance_pct < 40:
-        zone = "Mid-Upper Zone"
-    else:
-        zone = "Center of Range - Consolidation"
-    
-    return {
-        "to_support": f"{dist_to_support_pct:.2f}%",
-        "to_resistance": f"{dist_to_resistance_pct:.2f}%",
-        "zone": zone
-    }
-
-
-def detect_candle_pattern(candles: List[list], lookback: int = 3) -> str:
-    """
-    Detecta patrones de velas (Doji, Hammer, Engulfing, etc.)
-    Sin dependencias externas.
-    
-    Args:
-        candles: Lista de velas [timestamp, open, high, low, close, volume]
-        lookback: Número de velas previas a considerar
-    
-    Returns:
-        String descriptivo del patrón detectado
-    """
-    if not candles or len(candles) < 2:
-        return "Insufficient Data"
-    
-    # Obtener velas actuales y anterior
-    current = candles[-1]
-    prev = candles[-2]
-    
-    # Extraer datos
-    curr_open = float(current[1])
-    curr_high = float(current[2])
-    curr_low = float(current[3])
-    curr_close = float(current[4])
-    
-    prev_open = float(prev[1])
-    prev_high = float(prev[2])
-    prev_low = float(prev[3])
-    prev_close = float(prev[4])
-    
-    # Calcular tamaños
-    curr_body = abs(curr_close - curr_open)
-    curr_range = curr_high - curr_low
-    curr_upper_shadow = curr_high - max(curr_open, curr_close)
-    curr_lower_shadow = min(curr_open, curr_close) - curr_low
-    
-    prev_body = abs(prev_close - prev_open)
-    prev_range = prev_high - prev_low
-    
-    # Evitar división por cero
-    if curr_range == 0:
-        return "No Movement"
-    
-    body_ratio = curr_body / curr_range
-    
-    # 1. DOJI - Open ≈ Close, sombras balanceadas
-    if body_ratio < 0.1 and curr_range > 0:
-        if abs(curr_upper_shadow - curr_lower_shadow) < curr_range * 0.3:
-            return "Doji (Indecision/Reversal Signal)"
-        else:
-            return "Long-Legged Doji (High Volatility)"
-    
-    # 2. HAMMER - Small body en top, long lower shadow (bullish reversal en downtrend)
-    if body_ratio < 0.3 and curr_lower_shadow > 2 * curr_body and curr_upper_shadow < curr_body:
-        if curr_close > curr_open:
-            return "Hammer (Bullish Reversal Signal)"
-        else:
-            return "Inverted Hammer (Potential Reversal)"
-    
-    # 3. SHOOTING STAR - Small body en bottom, long upper shadow (bearish en uptrend)
-    if body_ratio < 0.3 and curr_upper_shadow > 2 * curr_body and curr_lower_shadow < curr_body:
-        if curr_close < curr_open:
-            return "Shooting Star (Bearish Reversal Signal)"
-        else:
-            return "Inverse Shooting Star"
-    
-    # 4. MARUBOZU - Sin sombras (strong movement)
-    if curr_upper_shadow < curr_range * 0.05 and curr_lower_shadow < curr_range * 0.05:
-        if curr_close > curr_open:
-            return "Bullish Marubozu (Strong Uptrend)"
-        else:
-            return "Bearish Marubozu (Strong Downtrend)"
-    
-    # 5. BULLISH ENGULFING - Current cierra arriba del prev open, abre debajo del prev close
-    if (curr_close > prev_open and curr_open < prev_close and 
-        curr_body > prev_body and curr_close > curr_open):
-        return "Bullish Engulfing (Strong Reversal Signal)"
-    
-    # 6. BEARISH ENGULFING - Current cierra abajo del prev open, abre arriba del prev close
-    if (curr_close < prev_open and curr_open > prev_close and 
-        curr_body > prev_body and curr_close < curr_open):
-        return "Bearish Engulfing (Strong Reversal Signal)"
-    
-    # 7. HARAMI - Small current body inside prev range (indecision)
-    if (curr_open > prev_low and curr_open < prev_high and 
-        curr_close > prev_low and curr_close < prev_high and
-        curr_body < prev_body * 0.5):
-        if curr_close > curr_open:
-            return "Bullish Harami (Potential Reversal)"
-        else:
-            return "Bearish Harami (Potential Reversal)"
-    
-    # 8. SPINNING TOP - Small body, long shadows on both sides
-    if body_ratio < 0.3 and curr_upper_shadow > curr_body and curr_lower_shadow > curr_body:
-        return "Spinning Top (Indecision/Consolidation)"
-    
-    # 9. Determinar trend fuerte vs débil por tamaño del body
-    if body_ratio > 0.7:
-        if curr_close > curr_open:
-            return "Strong Bullish Candle (Strong Uptrend Continuation)"
-        else:
-            return "Strong Bearish Candle (Strong Downtrend Continuation)"
-    elif body_ratio < 0.2:
-        return "Weak Candle (Consolidation/Indecision)"
-    else:
-        if curr_close > curr_open:
-            return "Moderate Bullish Candle"
-        else:
-            return "Moderate Bearish Candle"
-
-
-def analyze_timeframe_semantic(candles: List[list], timeframe: str) -> Dict[str, str]:
-    """
-    Analiza semánticamente una temporalidad específica.
-    
-    Args:
-        candles: Lista de velas
-        timeframe: Nombre de la temporalidad (ej: "1h", "1d")
-    
-    Returns:
-        Diccionario con análisis semántico
-    """
-    if not candles or len(candles) < 3:
-        return {"summary": "Insufficient Data"}
-    
-    closes = [float(c[4]) for c in candles]
-    price_slope = calculate_slope(closes, lookback=3)
-    metrics = calculate_metrics(candles)
-    
-    # Determinar contexto
-    volatility = metrics.get("volatility_pct", 0)
-    price_change = metrics.get("price_change_pct", 0)
-    
-    if volatility > 5:
-        vol_context = "High volatility"
-    elif volatility < 1:
-        vol_context = "Low volatility"
-    else:
-        vol_context = "Normal volatility"
-    
-    direction = "↑ UP" if price_change > 0 else "↓ DOWN"
-    
-    summary = f"{timeframe}: {direction} {abs(price_change):.2f}% ({vol_context}, {price_slope})"
-    
-    return {
-        "timeframe": timeframe,
-        "summary": summary,
-        "price_slope": price_slope,
-        "volatility_context": vol_context,
-        "price_change_pct": price_change
-    }
-
-
-# ======================== MÉTRICAS FUNDAMENTALES ========================
-
-def calculate_metrics(candles: List[list]) -> Dict[str, float]:
-    """
-    Calcula métricas fundamentales de los datos de velas.
-    
-    Args:
-        candles: Lista de velas [timestamp, open, high, low, close, volume]
-    
-    Returns:
-        Diccionario con métricas calculadas
-    """
-    if not candles or len(candles) == 0:
-        return {}
-    
-    closes = [float(c[4]) for c in candles]
-    highs = [float(c[2]) for c in candles]
-    lows = [float(c[3]) for c in candles]
-    volumes = [float(c[5]) for c in candles]
-    
-    # Precio actual y estadísticas básicas
-    current_price = closes[-1]
-    avg_price = sum(closes) / len(closes)
-    max_price = max(highs)
-    min_price = min(lows)
-    
-    # Volatilidad (desviación estándar)
-    variance = sum((p - avg_price) ** 2 for p in closes) / len(closes)
-    volatility = (variance ** 0.5) / avg_price * 100  # Porcentaje
-    
-    # Cambio de precio
-    price_change = ((closes[-1] - closes[0]) / closes[0]) * 100
-    
-    # Volumen
-    total_volume = sum(volumes)
-    avg_volume = total_volume / len(volumes)
-    
-    # Rango de precio
-    price_range = max_price - min_price
-    price_range_pct = (price_range / avg_price) * 100
-    
-    return {
-        "current_price": current_price,
-        "avg_price": avg_price,
-        "max_price": max_price,
-        "min_price": min_price,
-        "volatility_pct": volatility,
-        "price_change_pct": price_change,
-        "total_volume": total_volume,
-        "avg_volume": avg_volume,
-        "price_range": price_range,
-        "price_range_pct": price_range_pct,
-        "num_candles": len(candles)
-    }
-
+# Cache simple en memoria para minimizar llamadas a la API
+_CANDLES_CACHE: Dict[Tuple[str, str, int], List[list]] = {}
 
 # ======================== FUNCIÓN PRINCIPAL: DATOS ESTRUCTURADOS ========================
 
@@ -1510,6 +876,142 @@ def prepare_full_payload(structured, unstructured):
     
     return full_payload
 
+# ======================== NUEVO: DATAFRAME PARA PIPELINE ========================
+
+def _candles_to_df(symbol: str, candles: List[list]) -> pd.DataFrame:
+    """Convierte lista de velas a DataFrame con formato del pipeline.
+    Espera velas como [timestamp, open, high, low, close, volume].
+    """
+    if not candles:
+        return pd.DataFrame(columns=["timestamp", "ticker", "Open", "High", "Low", "Close", "Volume"]).set_index("timestamp")
+    expected_cols = ["timestamp", "Open", "High", "Low", "Close", "Volume"]
+
+    # Algunas respuestas de la API incluyen una columna extra (p.ej. turnover). Nos quedamos con las 6 primeras.
+    if len(candles[0]) > len(expected_cols):
+        candles = [row[: len(expected_cols)] for row in candles]
+    elif len(candles[0]) < len(expected_cols):
+        raise ValueError(f"Formato de vela inesperado: se esperaban {len(expected_cols)} columnas y llegaron {len(candles[0])}")
+
+    df = pd.DataFrame(candles, columns=expected_cols)
+    # Asegurar tipos numéricos
+    for c in ["Open", "High", "Low", "Close", "Volume"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    # Index temporal
+    # Las APIs suelen dar timestamp en ms
+    try:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+    except Exception:
+        # Si no es ms, intentar segundos
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+    df["ticker"] = symbol
+    df = df.set_index("timestamp").sort_index()
+    return df
+
+
+def _get_candles_cached(
+    api_key: str,
+    secret_key: str,
+    passphrase: str,
+    symbol: str,
+    timeframe: str,
+    limit: int,
+    locale: str,
+    verbose: bool,
+) -> List[list]:
+    """Obtiene velas con cache para evitar llamadas repetidas a la API."""
+    cache_key = (symbol, timeframe, limit)
+    if cache_key in _CANDLES_CACHE:
+        if verbose:
+            print(f"[CACHE] Reutilizando velas {symbol} {timeframe} ({limit})")
+        return _CANDLES_CACHE[cache_key]
+
+    candles = get_candles(
+        api_key, secret_key, passphrase,
+        symbol=symbol,
+        granularity=timeframe,
+        limit=limit,
+        locale=locale,
+        verbose=verbose,
+    )
+    _CANDLES_CACHE[cache_key] = candles or []
+    return _CANDLES_CACHE[cache_key]
+
+
+def get_df_data(
+    symbols: Optional[List[str]] = None,
+    timeframe: str = "1h",
+    horizon: int = 8,
+    d: float = 0.4,
+    window: int = 500,
+    vpt_price_d_window: int = 168,
+    vol_window: int = 168,
+    limit: int = 600,
+    verbose: bool = False,
+    inference_mode: bool = False,
+):
+    """
+    Construye el dataset del pipeline en memoria usando datos OHLCV de la API.
+    Optimiza llamadas: una por símbolo y temporalidad, con cache en proceso.
+
+    Args:
+        symbols: Lista de símbolos (ej: ["cmt_btcusdt", "cmt_ethusdt"]). Si None, usa claves de SYMBOL_TO_NAME.
+        timeframe: Temporalidad para las velas (ej: "1h", "4h").
+        horizon, d, window, vpt_price_d_window, vol_window: Parámetros del pipeline.
+        limit: Número de velas por símbolo a solicitar.
+        verbose: Logs informativos.
+        inference_mode: Si True, NO calcula TARGET_ALPHA (modo inferencia).
+
+    Returns:
+        DataFrame final del pipeline (features neutrales + TARGET_ALPHA si no es inference_mode).
+    """
+    if symbols is None or len(symbols) == 0:
+        symbols = list(SYMBOL_TO_NAME.keys())
+
+    # Credenciales
+    api_key = _env("API_Key", "")
+    secret_key = _env("secret_key", "")
+    passphrase = _env("passphrase", "")
+    locale = _env("WEEX_LOCALE", "en-US") or "en-US"
+
+    if verbose:
+        print(f"\n{'='*70}")
+        print(f"GET DF DATA - timeframe={timeframe}, symbols={len(symbols)}")
+        print(f"{'='*70}\n")
+
+    # 1) Obtener y construir DF base por símbolo
+    dfs = []
+    for sym in symbols:
+        if verbose:
+            print(f"[FETCH] {sym} ({timeframe}) limit={limit}")
+        candles = _get_candles_cached(api_key, secret_key, passphrase, sym, timeframe, limit, locale, verbose)
+        df_sym = _candles_to_df(sym, candles)
+        # Eliminar duplicados de timestamp
+        df_sym = df_sym[~df_sym.index.duplicated(keep='first')]
+        dfs.append(df_sym)
+
+    if not dfs:
+        raise ValueError("No se pudieron construir datos base (sin velas)")
+
+    df_base = pd.concat(dfs).sort_index()
+
+    # 2) Ejecutar pipeline en memoria (sin guardar)
+    final_dataset = process_pipeline(
+        horizon=horizon,
+        d=d,
+        window=window,
+        vpt_price_d_window=vpt_price_d_window,
+        vol_window=vol_window,
+        timeframe=timeframe,
+        df_base=df_base,
+        save_file=False,
+        inference_mode=inference_mode,
+    )
+
+    if verbose:
+        print(f"[DONE] Dataset listo: {final_dataset.shape}")
+
+    return final_dataset
+
 # ======================== EJEMPLO DE USO ========================
 
 if __name__ == "__main__":
@@ -1534,6 +1036,13 @@ if __name__ == "__main__":
     # Opción 3: Obtener todo
     print("\n>>> OPCIÓN 3: Todos los Datos <<<")
     all_data = get_all_data(symbol, verbose=True)
+
+    # Opción 4: Dataset del pipeline en memoria
+    print("\n>>> OPCIÓN 4: Dataset del Pipeline (in-memory) <<<")
+
+    df = get_df_data(symbols=["cmt_btcusdt", "cmt_ethusdt"], timeframe="1h", horizon=8, d=0.4, window=500, vpt_price_d_window=168, vol_window=168, limit=600, verbose=True)
+    print("\nPreview del dataset (head 5):")
+    print(df.head(5))
     
     print("\n" + "="*70)
     print("DEMO COMPLETADO")

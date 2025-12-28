@@ -5,80 +5,19 @@ import os
 import glob
 from scipy.stats import norm
 import warnings
+from utils import (
+    fracdiff_fixed_window,
+    rsi_price_d,
+    bollinger_features,
+    atr_price_d,
+    volume_imbalance,
+    vpt_price_d,
+    stoch_price_d,
+)
 warnings.filterwarnings('ignore')
 
 
-# FRACDIFF  ====================
-
-def fracdiff_fixed_window(series, d=0.4, window=500):
-    """
-    Fixed-Window Fractional Differenciación con ventana fija para calcular este valor sin look ahead bias.
-    para calcular el valor de HOY, la fórmula matemática necesita multiplicar y sumar los precios de las últimas x velas(window)
-
-    """
-    if len(series) < window:
-        return pd.Series(np.nan, index=series.index)
-    
-    # Pesos FFD
-    weights = [1.0] #peso del dato actual (hoy) == siempre 1
-    for k in range(1, window):# calculamos cuánto nos importa el dato de ayer,antesdeayer,hace3dias... (pesos van decayendo)
-        #simplemente creamos lista de coeficientes(weights) de len (window) con la info de window y del d
-        weights.append(-weights[-1] * (d - k + 1) / k) # weight = -(weight anterior) *(d - k + 1) / k
-    weights = np.array(weights[::-1]) #Reordenamos weights: [pequeño, mediano, ...., Grande] para la funcion convolve
-    values = series.fillna(method='ffill').fillna(0).values#rellenamos huecos
-    diff_values = np.convolve(values, weights, mode='valid') #tomamos la ventana de 500 pesos y la deslizamos sobre las velas, en cada paso
-    #mode valid para que solo calcule una vez tiene lo suficiente (numero 499).
-    """
-    eliminamos primeros datos window que son inestables, como valid
-    elimino primero los 499 inestbales, nos queda un array mas corto
-    (con 1000 velas y window 500, diff_values tiene 501)
-    """
-    new_index = series.index[window-1:]
-    return pd.Series(diff_values, index=new_index) #obtenemos serie transformada y alineada con los valores estacionarios abstractos
-    #estos valores abstractos representan la fuerza del precio conservando la memoria y siendo estacionarios matemáticamente
-
-# INDICADORES MANUALES sobre price_diferenciado fraccionalmente ====================
-
-def rsi_price_d(price_d, period=14):
-    """RSI calculado SOBRE la serie diferenciada"""
-    delta = price_d.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(period).mean()
-    avg_loss = loss.rolling(period).mean()
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
-
-def bollinger_features(price_d, period=20, std=2):
-    """Retorna Z-Score y Band Width sobre price_d"""
-    mid = price_d.rolling(period).mean()
-    std_dev = price_d.rolling(period).std()
-    zscore = (price_d - mid) / std_dev
-    width = (std_dev * std * 2) / mid.abs()
-    return zscore, width
-
-def atr_price_d(price_d, period=14):
-    """ATR simplificado para price_d (usa diferencia ventana 2)"""
-    high_low = price_d.rolling(2).max() - price_d.rolling(2).min()
-    return high_low.rolling(period).mean()
-
-def volume_imbalance(volume, price_d, period=20):
-    """Ratio volumen en velas positivas vs negativas"""
-    positive_vol = volume.where(price_d.diff() > 0, 0).rolling(period).sum()
-    negative_vol = volume.where(price_d.diff() < 0, 0).rolling(period).sum()
-    return (positive_vol - negative_vol) / (positive_vol + negative_vol + 1e-9)
-
-def vpt_price_d(volume, price_d, window=168):
-    """Volume Price Trend (Rolling) para mantener estacionariedad"""
-    vpt_raw = (volume * price_d.diff() / price_d)
-    return vpt_raw.rolling(window).sum()
-
-def stoch_price_d(price_d, k=14, d=3):
-    """Stochastic Oscillator sobre price_d"""
-    low_min = price_d.rolling(k).min()
-    high_max = price_d.rolling(k).max()
-    k_line = 100 * (price_d - low_min) / (high_max - low_min + 1e-9)
-    return k_line.rolling(d).mean()
+# Indicadores y transformaciones importados desde utils
 
 # LIMPIEZA Y ALINEACIÓN ====================
 
@@ -305,45 +244,88 @@ def add_alpha_lag_features(df, horizon=24):
 
 # PIPELINE PRINCIPAL ====================
 
-def process_pipeline(horizon=8, d=0.4, window=500, vpt_price_d_window=168, vol_window=168, timeframe='1h'):
-    """Ejecuta pipeline completo"""
+def process_pipeline(
+    horizon=8,
+    d=0.4,
+    window=500,
+    vpt_price_d_window=168,
+    vol_window=168,
+    timeframe='1h',
+    df_base: pd.DataFrame | None = None,
+    save_file: bool = True,
+    inference_mode: bool = False,
+):
+    """Ejecuta pipeline completo.
+
+    Parámetros:
+    - df_base: DataFrame ya cargado con columnas ['timestamp' (index), 'ticker', 'Open','High','Low','Close','Volume'].
+               Si se proporciona, se usará directamente y NO se leerán archivos.
+    - save_file: Si True, guarda el dataset final en parquet; si False, no guarda.
+    - inference_mode: Si True, NO calcula TARGET_ALPHA (modo inferencia, no hay datos futuros).
+    """
     input_dir = "data/raw"
     output_dir = "data/processed"
     print(f"[PROCESSING DATA] " + "="*50)
-    print(f"[INFO] input_dir:{input_dir} -> output_dir:{output_dir} -- [OK]")
-    df_clean = clean_and_align_data(input_dir, timeframe=timeframe)
-    print(f"[INFO] Datos limpios: {len(df_clean)} filas")
+
+    # Cargar/usar datos base
+    if df_base is None:
+        print(f"[INFO] input_dir:{input_dir} -> output_dir:{output_dir} -- [OK]")
+        df_clean = clean_and_align_data(input_dir, timeframe=timeframe)
+    else:
+        # Asegurar formato esperado
+        df_clean = df_base.copy()
+        if df_clean.index.name != 'timestamp':
+            df_clean = df_clean.set_index('timestamp')
+        df_clean = df_clean.sort_index()
+        print(f"[INFO] Datos base recibidos en memoria: {len(df_clean)} filas")
     
     df_features = add_technical_indicators(df_clean, d=d, window=window, vpt_price_d_window=vpt_price_d_window)
     print(f"[INFO] Features calculados: {len(df_features)} filas")
     
-    df_final = calculate_target_alpha(df_features, horizon=horizon, vol_window=vol_window, timeframe=timeframe)
-
-    df_final = add_alpha_lag_features(df_final, horizon=horizon)
-
-    # Selección final (solo features neutrales + target)
-    feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
-    cols_to_save = ['ticker', 'Close'] + feature_cols + ['TARGET_ALPHA']
+    if inference_mode:
+        # Modo inferencia: No calcular target alpha, solo features
+        df_final = add_alpha_lag_features(df_features, horizon=horizon)
+        feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
+        cols_to_save = ['ticker', 'Close'] + feature_cols
+        final_dataset = df_final[cols_to_save]
+        
+        # Eliminar solo filas con NaN en features (no en target que no existe)
+        rows_before = len(final_dataset)
+        final_dataset = final_dataset.dropna()
+        rows_after = len(final_dataset)
+        print(f"[INFO] Filas eliminadas por NaNs en features: {rows_before - rows_after}")
+    else:
+        # Modo entrenamiento: Calcular target alpha
+        df_final = calculate_target_alpha(df_features, horizon=horizon, vol_window=vol_window, timeframe=timeframe)
+        df_final = add_alpha_lag_features(df_final, horizon=horizon)
+        
+        feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
+        cols_to_save = ['ticker', 'Close'] + feature_cols + ['TARGET_ALPHA']
+        final_dataset = df_final[cols_to_save]
+        
+        rows_before = len(final_dataset)
+        final_dataset = final_dataset.dropna()
+        rows_after = len(final_dataset)
+        print(f"[INFO] Filas eliminadas por NaNs (Warm-up + Horizon): {rows_before - rows_after}")
     
-    final_dataset = df_final[cols_to_save]
-
-    rows_before = len(final_dataset)
-    final_dataset = final_dataset.dropna()
-    rows_after = len(final_dataset)
-
-    print(f"[INFO] Filas eliminadas por NaNs (Warm-up + Horizon): {rows_before - rows_after}")
-    
-    # guardar
-    os.makedirs(output_dir, exist_ok=True)
+    # Guardar opcionalmente
     save_path = os.path.join(output_dir, f"training_data_{timeframe}.parquet")
-    final_dataset.to_parquet(save_path)
+    if save_file:
+        os.makedirs(output_dir, exist_ok=True)
+        final_dataset.to_parquet(save_path)
     
     print("\n" + "="*50)
     print(f"[OK] PIPELINE COMPLETADO")
     print(f"Dimensiones: {final_dataset.shape}")
-    print(f"Guardado en: {save_path}")
+    if save_file:
+        print(f"Guardado en: {save_path}")
+    else:
+        print(f"Guardado: [omitido] (save_file=False)")
     print(f"Features finales: {len(feature_cols)}")
-    print(f"Rank de Alpha: {final_dataset['TARGET_ALPHA'].min():.4f} a {final_dataset['TARGET_ALPHA'].max():.4f}")
+    if not inference_mode and 'TARGET_ALPHA' in final_dataset.columns:
+        print(f"Rank de Alpha: {final_dataset['TARGET_ALPHA'].min():.4f} a {final_dataset['TARGET_ALPHA'].max():.4f}")
+    elif inference_mode:
+        print(f"Modo: INFERENCIA (sin target alpha)")
     print("="*50)
     
     return final_dataset
