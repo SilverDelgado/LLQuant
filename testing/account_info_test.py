@@ -12,7 +12,6 @@ import os
 # Agregar el directorio padre al path para importar módulos locales
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import json
 from api import _env
 from api.market import get_server_time
 from api.account import get_account_assets, get_public_ip
