@@ -1,23 +1,91 @@
 """Pipeline Fase 1: FracDiff -> Features Neutras -> Alpha Target"""
+import importlib.util
 import pandas as pd
 import numpy as np
 import os
 import glob
+import sys
+from pathlib import Path
 from scipy.stats import norm
 import warnings
-from utils import (
-    fracdiff_fixed_window,
-    rsi_price_d,
-    bollinger_features,
-    atr_price_d,
-    volume_imbalance,
-    vpt_price_d,
-    stoch_price_d,
-)
 warnings.filterwarnings('ignore')
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-# Indicadores y transformaciones importados desde utils
+
+# FRACDIFF  ====================
+
+def fracdiff_fixed_window(series, d=0.4, window=500):
+    """
+    Fixed-Window Fractional Differenciación con ventana fija para calcular este valor sin look ahead bias.
+    para calcular el valor de HOY, la fórmula matemática necesita multiplicar y sumar los precios de las últimas x velas(window)
+
+    """
+    if len(series) < window:
+        return pd.Series(np.nan, index=series.index)
+    
+    # Pesos FFD
+    weights = [1.0] #peso del dato actual (hoy) == siempre 1
+    for k in range(1, window):# calculamos cuánto nos importa el dato de ayer,antesdeayer,hace3dias... (pesos van decayendo)
+        #simplemente creamos lista de coeficientes(weights) de len (window) con la info de window y del d
+        weights.append(-weights[-1] * (d - k + 1) / k) # weight = -(weight anterior) *(d - k + 1) / k
+    weights = np.array(weights[::-1]) #Reordenamos weights: [pequeño, mediano, ...., Grande] para la funcion convolve
+    values = series.fillna(method='ffill').fillna(0).values#rellenamos huecos
+    diff_values = np.convolve(values, weights, mode='valid') #tomamos la ventana de 500 pesos y la deslizamos sobre las velas, en cada paso
+    #mode valid para que solo calcule una vez tiene lo suficiente (numero 499).
+    """
+    eliminamos primeros datos window que son inestables, como valid
+    elimino primero los 499 inestbales, nos queda un array mas corto
+    (con 1000 velas y window 500, diff_values tiene 501)
+    """
+    new_index = series.index[window-1:]
+    return pd.Series(diff_values, index=new_index) #obtenemos serie transformada y alineada con los valores estacionarios abstractos
+    #estos valores abstractos representan la fuerza del precio conservando la memoria y siendo estacionarios matemáticamente
+
+# INDICADORES MANUALES sobre price_diferenciado fraccionalmente ====================
+
+def rsi_price_d(price_d, period=14):
+    """RSI calculado SOBRE la serie diferenciada"""
+    delta = price_d.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+def bollinger_features(price_d, period=20, std=2):
+    """Retorna Z-Score y Band Width sobre price_d"""
+    mid = price_d.rolling(period).mean()
+    std_dev = price_d.rolling(period).std()
+    zscore = (price_d - mid) / std_dev
+    width = (std_dev * std * 2) / mid.abs()
+    return zscore, width
+
+def atr_price_d(price_d, period=14):
+    """ATR simplificado para price_d (usa diferencia ventana 2)"""
+    high_low = price_d.rolling(2).max() - price_d.rolling(2).min()
+    return high_low.rolling(period).mean()
+
+def volume_imbalance(volume, price_d, period=20):
+    """Ratio volumen en velas positivas vs negativas"""
+    positive_vol = volume.where(price_d.diff() > 0, 0).rolling(period).sum()
+    negative_vol = volume.where(price_d.diff() < 0, 0).rolling(period).sum()
+    return (positive_vol - negative_vol) / (positive_vol + negative_vol + 1e-9)
+
+def vpt_price_d(volume, price_d, window=168):
+    """Volume Price Trend (Rolling) para mantener estacionariedad"""
+    vpt_raw = (volume * price_d.diff() / price_d)
+    return vpt_raw.rolling(window).sum()
+
+def stoch_price_d(price_d, k=14, d=3):
+    """Stochastic Oscillator sobre price_d"""
+    low_min = price_d.rolling(k).min()
+    high_max = price_d.rolling(k).max()
+    k_line = 100 * (price_d - low_min) / (high_max - low_min + 1e-9)
+    return k_line.rolling(d).mean()
 
 # LIMPIEZA Y ALINEACIÓN ====================
 
@@ -92,6 +160,11 @@ def add_technical_indicators(df, d=0.4, window=500, vpt_price_d_window=168):
         group['vpt'] = vpt_price_d(group['Volume'], group['price_d'], window=vpt_price_d_window)
         group['vol_imbalance'] = volume_imbalance(group['Volume'], group['price_d'], period=20)
         group['ret_vol_ratio'] = group['price_d'].diff() / (group['atr'] + 1e-9) # Ratio retorno/volatilidad
+        vol_relativo = group['Volume'] / (group['Volume'].rolling(24).mean() + 1e-9)
+        group['pv_divergence'] = group['price_d'] / (vol_relativo + 1e-9) #Indica movimiento sin fuerza.
+        atr_long = group['atr'].rolling(window=100).mean()
+        group['volatility_regime'] = group['atr'] / (atr_long + 1e-9)# Ratio entre volatilidad actual y volatilidad de largo plazo
+        group['interaction_rsi_vol'] = group['rsi'] * group['volatility_regime']#Un RSI alto = peligroso, pero un RSI alto + ALTA volatilidad = ALERTA.
         
         processed.append(group)
     
@@ -100,7 +173,7 @@ def add_technical_indicators(df, d=0.4, window=500, vpt_price_d_window=168):
     # NEUTRALIZACIÓN CROSS-SECTIONAL ====================
     print("[FEATURES] Neutralizando features...")
     
-    feature_cols = ['rsi', 'zscore', 'bb_width', 'atr', 'stoch', 'vpt', 'vol_imbalance', 'ret_vol_ratio']
+    feature_cols = ['rsi', 'zscore', 'bb_width', 'atr', 'stoch', 'vpt', 'vol_imbalance', 'ret_vol_ratio', 'pv_divergence', 'volatility_regime', 'interaction_rsi_vol']
     
     for col in feature_cols:
         # calcular El Promedio del Mercado
@@ -242,91 +315,244 @@ def add_alpha_lag_features(df, horizon=24):
     
     return df
 
+# LOOK AHEAD BIAS CHECK ==========================================
+
+def validate_feature_look_ahead(df, feature_name, params, samples=10):
+    print(f"[TEST] Validando temporalidad de '{feature_name}'...")
+
+    if 'alpha_past' in feature_name: #test de mutacion
+        # Extraemos el horizonte de los params o usamos default
+        h = params.get('horizon', 8) 
+        passed = run_mutation_check_for_alpha(df, feature_name, horizon=h)
+        if passed:
+            print(f"[OK] '{feature_name}' pasa la validación (Mutation Test)")
+            return True
+        else:
+            return False
+
+    sample_rows = df.reset_index().iloc[:samples]
+
+    for _, row in sample_rows.iterrows(): # test de recalculo
+        timestamp = row['timestamp']
+        ticker = row['ticker']
+        feature_real = row[feature_name]
+
+        feature_manual = recalcula_con_funciones_originales(df, timestamp, feature_name, ticker, params)
+
+        if np.isnan(feature_manual):
+            continue
+
+        # tol
+        if abs(feature_real - feature_manual) > 1e-5:
+            print(f"[FATAL] FALLA en {timestamp} {ticker}: Real={feature_real:.6f} != Manual={feature_manual:.6f}")
+            return False
+
+    print(f"[OK] '{feature_name}' pasa la validación (Recalc Test)")
+    return True
+
+def run_mutation_check_for_alpha(df, feature_name, horizon=8):
+    """
+    Sub-test específico para Alpha Past.
+    Modifica el futuro y verifica que el pasado no cambie.
+    """
+    print(f"---> [SPECIAL TEST] Ejecutando Mutación para {feature_name}...")
+    
+    # 1. Setup: Copia ligera para no romper nada
+    # Cogemos un subconjunto para ir rápido
+    tickers = df['ticker'].unique()[:3] 
+    df_test = df[df['ticker'].isin(tickers)].copy().sort_index()
+    
+    # Encontramos un punto T donde tengamos futuro
+    unique_times = df_test.index.unique()
+    if len(unique_times) < horizon + 5:
+        return True # No hay suficientes datos para probar
+        
+    t_target = unique_times[-10] # Un momento cerca del final
+    t_future = unique_times[-9]  # El momento siguiente
+    
+    # 2. Valor Original
+    # (Asumimos que alpha_past ya está calculado en df_test o lo recalculamos)
+    # Para estar seguros, lo recalculamos limpio:
+    df_clean = df_test.drop(columns=[feature_name], errors='ignore')
+    df_orig = add_alpha_lag_features(df_clean.copy(), horizon=horizon)
+    
+    val_orig = df_orig.loc[t_target, feature_name].iloc[0] # Valor de la primera moneda en T
+    
+    # 3. Valor Mutado (Destruyendo el futuro)
+    df_mutated = df_clean.copy()
+    # Multiplicamos el precio de MAÑANA por 1 millón
+    df_mutated.loc[t_future, 'Close'] = df_mutated.loc[t_future, 'Close'] * 1_000_000
+    
+    # Recalculamos feature
+    df_mut_calc = add_alpha_lag_features(df_mutated, horizon=horizon)
+    val_mut = df_mut_calc.loc[t_target, feature_name].iloc[0]
+    
+    # 4. Comparación
+    print(f"Val original: {val_orig}, Val mutado: {val_mut}")
+    diff = abs(val_orig - val_mut)
+    if diff < 1e-9:
+        return True
+    else:
+        print(f"[FATAL] MUTATION DETECTED en {feature_name}!")
+        print(f"   Original en {t_target}: {val_orig}")
+        print(f"   Mutado (con precio {t_future} x1M): {val_mut}")
+        return False
+
+def recalcula_con_funciones_originales(df, timestamp, feature_name, ticker, params):
+    base_name = feature_name.replace('_neutral', '')
+    
+    # mascara PARA ELIMINAR FUTURO 
+    mask = (df['ticker'] == ticker) & (df.index <= timestamp) #cortamos datos en T
+    data_until_t = df.loc[mask].copy()
+
+    if len(data_until_t) < 2:
+        return np.nan
+
+    price_d = data_until_t.get('price_d')
+    vol = data_until_t.get('Volume')
+    base_value = np.nan
+
+    # RECALCULOS PARA COMPARAR
+    if 'rsi' in base_name and 'interaction' not in base_name:
+        if len(price_d) < params['rsi_period']:
+            return np.nan
+        base_value = rsi_price_d(price_d, period=params['rsi_period']).iloc[-1]
+
+    elif 'zscore' in base_name or 'bb_width' in base_name:
+        if len(price_d) < params['bb_period']:
+            return np.nan
+        zscore, bb_width = bollinger_features(price_d, period=params['bb_period'], std=params['bb_std'])
+        base_value = zscore.iloc[-1] if 'zscore' in base_name else bb_width.iloc[-1]
+
+    elif 'atr' in base_name and 'ret_vol_ratio' not in base_name and 'regime' not in base_name:
+        if len(price_d) < params['atr_period']:
+            return np.nan
+        base_value = atr_price_d(price_d, period=params['atr_period']).iloc[-1]
+
+    elif 'stoch' in base_name:
+        if len(price_d) < params['stoch_k']:
+            return np.nan
+        base_value = stoch_price_d(price_d, k=params['stoch_k'], d=params['stoch_d']).iloc[-1]
+
+    elif 'vpt' in base_name:
+        if len(price_d) < params['vpt_price_d_window']:
+            return np.nan
+        base_value = vpt_price_d(vol, price_d, window=params['vpt_price_d_window']).iloc[-1]
+
+    elif 'vol_imbalance' in base_name:
+        if len(price_d) < params['vol_imb_period']:
+            return np.nan
+        base_value = volume_imbalance(vol, price_d, period=params['vol_imb_period']).iloc[-1]
+
+    elif 'ret_vol_ratio' in base_name:
+        atr_series = atr_price_d(price_d, period=params['atr_period'])
+        ret = price_d.diff()
+        base_value = (ret / (atr_series + 1e-9)).iloc[-1]
+
+    elif 'interaction_rsi_vol' in base_name:
+        # recalcular los componentes primero
+        rsi = rsi_price_d(price_d, period=params['rsi_period'])
+        atr_series = atr_price_d(price_d, period=params['atr_period'])
+        atr_long = atr_series.rolling(window=100).mean()
+        vol_regime = atr_series / (atr_long + 1e-9)
+        base_value = (rsi * vol_regime).iloc[-1]
+
+    elif 'pv_divergence' in base_name:
+        # Replicamos la fórmula: price_d / (volumen / media_volumen_24h)
+        vol_rel = vol / (vol.rolling(24).mean() + 1e-9)
+        base_value = (price_d / (vol_rel + 1e-9)).iloc[-1]
+    
+    elif 'volatility_regime' in base_name:
+        # Replicamos: ATR actual / ATR promedio 100 periodos
+        atr_series = atr_price_d(price_d, period=params['atr_period'])
+        atr_long = atr_series.rolling(window=100).mean()
+        base_value = (atr_series / (atr_long + 1e-9)).iloc[-1]
+
+    else:
+        return np.nan
+
+    # Neutralización Cross-Sectional para comparar
+    if feature_name.endswith('_neutral'):
+        market_vals = df.loc[timestamp, base_name]
+        if isinstance(market_vals, pd.Series) or isinstance(market_vals, np.ndarray):
+            market_mean = np.mean(market_vals)
+            market_std = np.std(market_vals)
+        else:
+            market_mean = market_vals
+            market_std = 0.0
+        return (base_value - market_mean) / (market_std + 1e-9)
+
+    return base_value
+
+
 # PIPELINE PRINCIPAL ====================
 
-def process_pipeline(
-    horizon=8,
-    d=0.4,
-    window=500,
-    vpt_price_d_window=168,
-    vol_window=168,
-    timeframe='1h',
-    df_base: pd.DataFrame | None = None,
-    save_file: bool = True,
-    inference_mode: bool = False,
-):
-    """Ejecuta pipeline completo.
-
-    Parámetros:
-    - df_base: DataFrame ya cargado con columnas ['timestamp' (index), 'ticker', 'Open','High','Low','Close','Volume'].
-               Si se proporciona, se usará directamente y NO se leerán archivos.
-    - save_file: Si True, guarda el dataset final en parquet; si False, no guarda.
-    - inference_mode: Si True, NO calcula TARGET_ALPHA (modo inferencia, no hay datos futuros).
-    """
+def process_pipeline(horizon=8, d=0.4, window=500, vpt_price_d_window=168, vol_window=168, timeframe='1h', look_ahead_test=False):
+    """Ejecuta pipeline completo"""
     input_dir = "data/raw"
     output_dir = "data/processed"
     print(f"[PROCESSING DATA] " + "="*50)
-
-    # Cargar/usar datos base
-    if df_base is None:
-        print(f"[INFO] input_dir:{input_dir} -> output_dir:{output_dir} -- [OK]")
-        df_clean = clean_and_align_data(input_dir, timeframe=timeframe)
-    else:
-        # Asegurar formato esperado
-        df_clean = df_base.copy()
-        if df_clean.index.name != 'timestamp':
-            df_clean = df_clean.set_index('timestamp')
-        df_clean = df_clean.sort_index()
-        print(f"[INFO] Datos base recibidos en memoria: {len(df_clean)} filas")
+    print(f"[INFO] input_dir:{input_dir} -> output_dir:{output_dir} -- [OK]")
+    df_clean = clean_and_align_data(input_dir, timeframe=timeframe)
+    print(f"[INFO] Datos limpios: {len(df_clean)} filas")
     
     df_features = add_technical_indicators(df_clean, d=d, window=window, vpt_price_d_window=vpt_price_d_window)
     print(f"[INFO] Features calculados: {len(df_features)} filas")
     
-    if inference_mode:
-        # Modo inferencia: No calcular target alpha, solo features
-        df_final = add_alpha_lag_features(df_features, horizon=horizon)
-        feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
-        cols_to_save = ['ticker', 'Close'] + feature_cols
-        final_dataset = df_final[cols_to_save]
-        
-        # Eliminar solo filas con NaN en features (no en target que no existe)
-        rows_before = len(final_dataset)
-        final_dataset = final_dataset.dropna()
-        rows_after = len(final_dataset)
-        print(f"[INFO] Filas eliminadas por NaNs en features: {rows_before - rows_after}")
-    else:
-        # Modo entrenamiento: Calcular target alpha
-        df_final = calculate_target_alpha(df_features, horizon=horizon, vol_window=vol_window, timeframe=timeframe)
-        df_final = add_alpha_lag_features(df_final, horizon=horizon)
-        
-        feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
-        cols_to_save = ['ticker', 'Close'] + feature_cols + ['TARGET_ALPHA']
-        final_dataset = df_final[cols_to_save]
-        
-        rows_before = len(final_dataset)
-        final_dataset = final_dataset.dropna()
-        rows_after = len(final_dataset)
-        print(f"[INFO] Filas eliminadas por NaNs (Warm-up + Horizon): {rows_before - rows_after}")
+    df_final = calculate_target_alpha(df_features, horizon=horizon, vol_window=vol_window, timeframe=timeframe)
+
+    df_final = add_alpha_lag_features(df_final, horizon=horizon)
+
+    # Selección final (solo features neutrales + target)
+    feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
+    cols_to_save = ['ticker', 'Close'] + feature_cols + ['TARGET_ALPHA']
     
-    # Guardar opcionalmente
+    final_dataset = df_final[cols_to_save]
+
+    rows_before = len(final_dataset)
+    final_dataset = final_dataset.dropna()
+    rows_after = len(final_dataset)
+
+    print(f"[INFO] Filas eliminadas por NaNs (Warm-up + Horizon): {rows_before - rows_after}")
+    
+    # guardar
+    os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"training_data_{timeframe}.parquet")
-    if save_file:
-        os.makedirs(output_dir, exist_ok=True)
-        final_dataset.to_parquet(save_path)
+    final_dataset.to_parquet(save_path)
     
     print("\n" + "="*50)
     print(f"[OK] PIPELINE COMPLETADO")
     print(f"Dimensiones: {final_dataset.shape}")
-    if save_file:
-        print(f"Guardado en: {save_path}")
-    else:
-        print(f"Guardado: [omitido] (save_file=False)")
+    print(f"Guardado en: {save_path}")
     print(f"Features finales: {len(feature_cols)}")
-    if not inference_mode and 'TARGET_ALPHA' in final_dataset.columns:
-        print(f"Rank de Alpha: {final_dataset['TARGET_ALPHA'].min():.4f} a {final_dataset['TARGET_ALPHA'].max():.4f}")
-    elif inference_mode:
-        print(f"Modo: INFERENCIA (sin target alpha)")
+    print(f"Rank de Alpha: {final_dataset['TARGET_ALPHA'].min():.4f} a {final_dataset['TARGET_ALPHA'].max():.4f}")
     print("="*50)
+
+    if look_ahead_test:
+        print("\n" + "="*50)
+        print("[TEST] VALIDANDO TEMPORALIDAD DE FEATURES")
+        print("="*50)
+        
+        feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
+        
+        params = {
+            'horizon': horizon,
+            'rsi_period': 14,
+            'bb_period': 20,
+            'bb_std': 2,
+            'atr_period': 14,
+            'stoch_k': 14,
+            'stoch_d': 3,
+            'vpt_price_d_window': vpt_price_d_window,
+            'vol_imb_period': 20,
+        }
+
+        for feature in feature_cols:
+            is_valid = validate_feature_look_ahead(df_final, feature, params)
+            if not is_valid:
+                raise ValueError(f"Feature {feature} tiene look-ahead bias")
+        
+        print("[TEST] [OK] Todas las features pasan validación")
     
     return final_dataset
 
@@ -338,6 +564,6 @@ if __name__ == "__main__":
     # df_final = process_pipeline(horizon=24, d=0.4, window=50, vpt_price_d_window = 24, vol_window=48, timeframe='1h') #24h
     # df_final = process_pipeline(horizon=8, d=0.4, window=50, vpt_price_d_window = 24, vol_window=48, timeframe='1h') #8h
     # df_final = process_pipeline(horizon=48, d=0.4, window=50, vpt_price_d_window=24, vol_window=96, timeframe='1h') #48h
-    df_final = process_pipeline(horizon=8,d=0.4, window=50,vpt_price_d_window=6,vol_window=12,timeframe='4h') # alpha_past_neutral (Spearman: -0.0498)
+    df_final = process_pipeline(horizon=8,d=0.4, window=50,vpt_price_d_window=6,vol_window=12,timeframe='4h', look_ahead_test=False) # alpha_past_neutral (Spearman: -0.0498)
 
     
