@@ -74,11 +74,77 @@ def load_credentials() -> Optional[Dict[str, str]]:
 	}
 
 
-def safe_float(value: Any) -> str:
+def safe_float(value: Any, decimals: int = 2) -> str:
+	"""Formatea un número con separador de miles y decimales configurables."""
 	try:
-		return f"{float(value):,.2f}"
+		dec = max(0, int(decimals))
+		return f"{float(value):,.{dec}f}"
 	except Exception:
 		return str(value)
+
+
+def normalize_account(raw: Any) -> Dict[str, Any]:
+	"""Normaliza la respuesta de assets para que siempre tenga los mismos campos."""
+	def to_float(val: Any, default: float = 0.0) -> float:
+		try:
+			return float(val)
+		except Exception:
+			return default
+
+	account = {
+		"total_equity": None,
+		"balance": None,
+		"unrealized_pnl": None,
+		"realised_pnl": None,
+		"coins": [],
+	}
+
+	if raw is None:
+		return account
+
+	data = raw.get("data") if isinstance(raw, dict) else raw
+	coins: List[Any] = []
+	if isinstance(data, dict) and "coins" in data:
+		coins = data.get("coins") or []
+	elif isinstance(data, list):
+		coins = data
+
+	for coin in coins:
+		if not isinstance(coin, dict):
+			continue
+		currency = coin.get("currency") or coin.get("coin") or coin.get("coinName") or coin.get("symbol") or "?"
+		available = to_float(coin.get("available"))
+		frozen = to_float(coin.get("frozen"))
+		equity = to_float(coin.get("equity"), available + frozen)
+		unrealized = to_float(coin.get("unrealizePnl") or coin.get("unrealized_pnl") or coin.get("unrealizedPnl"))
+
+		account["coins"].append(
+			{
+				"currency": str(currency).upper(),
+				"available": available,
+				"frozen": frozen,
+				"equity": equity,
+				"unrealized_pnl": unrealized,
+			}
+		)
+
+	if isinstance(data, dict):
+		account["total_equity"] = data.get("total_equity") or data.get("totalEquity")
+		account["balance"] = data.get("balance") or data.get("available")
+		account["unrealized_pnl"] = data.get("unrealized_pnl") or data.get("unrealise_pnl") or data.get("unrealizePnl")
+		account["realised_pnl"] = data.get("realised_pnl") or data.get("realized_pnl") or data.get("realizedPnl")
+
+	if account["coins"]:
+		if account["total_equity"] is None:
+			account["total_equity"] = sum(c["equity"] for c in account["coins"])
+		if account["balance"] is None:
+			account["balance"] = sum(c["available"] for c in account["coins"])
+		if account["unrealized_pnl"] is None:
+			account["unrealized_pnl"] = sum(c["unrealized_pnl"] for c in account["coins"])
+		if account["realised_pnl"] is None:
+			account["realised_pnl"] = 0.0
+
+	return account
 
 
 def normalize_positions(raw: Any) -> List[Dict[str, Any]]:
@@ -88,6 +154,9 @@ def normalize_positions(raw: Any) -> List[Dict[str, Any]]:
 		return raw
 	if isinstance(raw, dict):
 		data = raw.get("data") or raw.get("positions") or raw.get("result")
+		# Si viene anidado en data["positions"], usamos esa lista.
+		if isinstance(data, dict) and "positions" in data:
+			data = data.get("positions")
 		if isinstance(data, list):
 			return data
 		if isinstance(data, dict):
@@ -99,7 +168,8 @@ def normalize_positions(raw: Any) -> List[Dict[str, Any]]:
 def fetch_snapshot(symbols: Iterable[str], creds: Dict[str, str]) -> DashboardState:
 	state = DashboardState()
 	try:
-		state.account = get_account_assets(**creds, verbose=False)
+		account_raw = get_account_assets(**creds, verbose=False)
+		state.account = normalize_account(account_raw)
 	except Exception as exc:  # pragma: no cover - defensive
 		state.error = f"Error al leer cuenta: {exc}"
 
@@ -130,31 +200,18 @@ def build_account_panel(account: Optional[Dict[str, Any]]) -> Panel:
 		table.add_row("estado", "Sin datos. Revisa credenciales o conexion.")
 		return Panel(table, title="Balance")
 
-	data = account.get("data") if isinstance(account, dict) else None
-	data = data or account
-
-	if isinstance(data, dict):
-		table.add_row("total_equity", safe_float(data.get("total_equity", "--")))
-		table.add_row("balance", safe_float(data.get("balance", "--")))
-		table.add_row("unrealized_pnl", safe_float(data.get("unrealized_pnl", "--")))
-		table.add_row("realised_pnl", safe_float(data.get("realised_pnl", "--")))
-
-		coins = data.get("coins") if isinstance(data, dict) else None
+	if isinstance(account, dict):
+		table.add_row("total_equity", safe_float(account.get("total_equity", "--")))
+		table.add_row("balance", safe_float(account.get("balance", "--")))
+		table.add_row("unrealized_pnl", safe_float(account.get("unrealized_pnl", "--")))
+		table.add_row("realised_pnl", safe_float(account.get("realised_pnl", "--")))
+		coins = account.get("coins")
 	else:
-		# Assume data is a list of coins, calculate totals from coins
-		coins = data if isinstance(data, list) else None
-		if coins:
-			total_equity = sum(float(coin.get("available", 0)) + float(coin.get("frozen", 0)) for coin in coins if isinstance(coin, dict))
-			balance = sum(float(coin.get("available", 0)) for coin in coins if isinstance(coin, dict))
-			table.add_row("total_equity", safe_float(total_equity))
-			table.add_row("balance", safe_float(balance))
-			table.add_row("unrealized_pnl", "--")
-			table.add_row("realised_pnl", "--")
-		else:
-			table.add_row("total_equity", "--")
-			table.add_row("balance", "--")
-			table.add_row("unrealized_pnl", "--")
-			table.add_row("realised_pnl", "--")
+		table.add_row("total_equity", "--")
+		table.add_row("balance", "--")
+		table.add_row("unrealized_pnl", "--")
+		table.add_row("realised_pnl", "--")
+		coins = None
 	if coins:
 		coins_table = Table(title="Activos", show_edge=False, show_header=True, expand=True)
 		coins_table.add_column("Moneda", style="cyan", no_wrap=True)
@@ -194,7 +251,7 @@ def build_positions_panel(positions: Dict[str, Any]) -> Panel:
 	for symbol, raw in positions.items():
 		for pos in normalize_positions(raw):
 			side = str(pos.get("holdSide") or pos.get("side") or "?")
-			size = safe_float(pos.get("size") or pos.get("qty") or pos.get("positionMargin") or "--")
+			size = safe_float(pos.get("size") or pos.get("qty") or pos.get("positionMargin") or "--", decimals=10)
 			entry = safe_float(pos.get("avgPrice") or pos.get("entryPrice") or pos.get("open_price") or "--")
 			mark = safe_float(pos.get("markPrice") or pos.get("marketPrice") or pos.get("last") or "--")
 			pnl = safe_float(pos.get("unrealizedPnl") or pos.get("pnl") or pos.get("unrealized_pnl") or "--")
