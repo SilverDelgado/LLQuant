@@ -41,14 +41,27 @@ def get_latest_market_state():
     print(f"[INFERENCIA] Analizando {len(latest)} activos en el último estado del mercado")
     return latest
 
-def generate_signals():
+def generate_signals(market_df: pd.DataFrame | None = None):
     model = load_inference_artifacts()
-    market_df = get_latest_market_state()
+    # Permite usar un dataset en memoria si se provee; si no, carga desde disco
+    if market_df is None:
+        market_df = get_latest_market_state()
+    else:
+        # Si viene con múltiples filas por ticker, tomar la última observación
+        if 'ticker' in market_df.columns:
+            market_df = market_df.groupby('ticker').last()
+        else:
+            raise ValueError("El dataset de mercado debe incluir columna 'ticker'.")
     
     # Obtener features neutralizadas (las mismas que usamos en entrenamiento)
     feature_cols = [c for c in market_df.columns if c.endswith('_neutral')]
+    missing = [f for f in FEATURES if f not in market_df.columns]
+    if missing:
+        raise ValueError(
+            "Faltan features requeridas para inferencia: " + ", ".join(missing) +
+            "\nSugerencia: asegúrate de que el pipeline de inferencia calcule 'alpha_past_neutral' como en training."
+        )
     print(f"[INFERENCIA] Usando {len(FEATURES)} features: {FEATURES}")
-    
     X_live = market_df[FEATURES]
     
     # Predecir alpha con XGBRegressor

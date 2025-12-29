@@ -487,54 +487,95 @@ def recalcula_con_funciones_originales(df, timestamp, feature_name, ticker, para
 
 # PIPELINE PRINCIPAL ====================
 
-def process_pipeline(horizon=8, d=0.4, window=500, vpt_price_d_window=168, vol_window=168, timeframe='1h', look_ahead_test=False):
-    """Ejecuta pipeline completo"""
+def process_pipeline(
+    horizon=8,
+    d=0.4,
+    window=500,
+    vpt_price_d_window=168,
+    vol_window=168,
+    timeframe='1h',
+    look_ahead_test=False,
+    df_base=None,
+    save_file=True,
+    inference_mode=False,
+):
+    """Ejecuta pipeline completo.
+
+    Soporta dos modos de entrada:
+    - Sin `df_base`: carga y limpia datos desde `data/raw` (modo entrenamiento).
+    - Con `df_base`: usa el DataFrame entregado en memoria (modo inferencia/rápido).
+
+    Si `inference_mode=True`, NO calcula `TARGET_ALPHA` ni features dependientes de ella.
+    """
     input_dir = "data/raw"
     output_dir = "data/processed"
     print(f"[PROCESSING DATA] " + "="*50)
-    print(f"[INFO] input_dir:{input_dir} -> output_dir:{output_dir} -- [OK]")
-    df_clean = clean_and_align_data(input_dir, timeframe=timeframe)
+    if df_base is None:
+        print(f"[INFO] input_dir:{input_dir} -> output_dir:{output_dir} -- [OK]")
+        df_clean = clean_and_align_data(input_dir, timeframe=timeframe)
+    else:
+        print(f"[INFO] usando df_base en memoria -> output_dir:{output_dir}")
+        # Asumimos que `df_base` ya viene con índices limpios y alineados (por símbolo)
+        df_clean = df_base
+
     print(f"[INFO] Datos limpios: {len(df_clean)} filas")
-    
-    df_features = add_technical_indicators(df_clean, d=d, window=window, vpt_price_d_window=vpt_price_d_window)
+
+    df_features = add_technical_indicators(
+        df_clean,
+        d=d,
+        window=window,
+        vpt_price_d_window=vpt_price_d_window,
+    )
     print(f"[INFO] Features calculados: {len(df_features)} filas")
-    
-    df_final = calculate_target_alpha(df_features, horizon=horizon, vol_window=vol_window, timeframe=timeframe)
 
-    df_final = add_alpha_lag_features(df_final, horizon=horizon)
+    if not inference_mode:
+        df_final = calculate_target_alpha(df_features, horizon=horizon, vol_window=vol_window, timeframe=timeframe)
+        df_final = add_alpha_lag_features(df_final, horizon=horizon)
+    else:
+        # En modo inferencia calculamos TARGET para poder derivar alpha_past y su versión neutralizada,
+        # pero luego excluimos TARGET_ALPHA de la salida para evitar fuga de información.
+        df_tmp = calculate_target_alpha(df_features, horizon=horizon, vol_window=vol_window, timeframe=timeframe)
+        df_final = add_alpha_lag_features(df_tmp, horizon=horizon)
 
-    # Selección final (solo features neutrales + target)
+    # Selección final (solo features neutrales + target si existe)
     feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
-    cols_to_save = ['ticker', 'Close'] + feature_cols + ['TARGET_ALPHA']
-    
-    final_dataset = df_final[cols_to_save]
+    cols_to_keep = ['ticker', 'Close'] + feature_cols
+    if not inference_mode and 'TARGET_ALPHA' in df_final.columns:
+        cols_to_keep.append('TARGET_ALPHA')
+
+    final_dataset = df_final[cols_to_keep]
 
     rows_before = len(final_dataset)
     final_dataset = final_dataset.dropna()
     rows_after = len(final_dataset)
 
     print(f"[INFO] Filas eliminadas por NaNs (Warm-up + Horizon): {rows_before - rows_after}")
-    
-    # guardar
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"training_data_{timeframe}.parquet")
-    final_dataset.to_parquet(save_path)
-    
+
+    # Guardado opcional
+    if save_file:
+        os.makedirs(output_dir, exist_ok=True)
+        save_path = os.path.join(output_dir, f"training_data_{timeframe}.parquet")
+        final_dataset.to_parquet(save_path)
+    else:
+        save_path = None
+
     print("\n" + "="*50)
     print(f"[OK] PIPELINE COMPLETADO")
     print(f"Dimensiones: {final_dataset.shape}")
-    print(f"Guardado en: {save_path}")
+    if save_path:
+        print(f"Guardado en: {save_path}")
     print(f"Features finales: {len(feature_cols)}")
-    print(f"Rank de Alpha: {final_dataset['TARGET_ALPHA'].min():.4f} a {final_dataset['TARGET_ALPHA'].max():.4f}")
+    if not inference_mode and 'TARGET_ALPHA' in final_dataset.columns:
+        print(f"Rank de Alpha: {final_dataset['TARGET_ALPHA'].min():.4f} a {final_dataset['TARGET_ALPHA'].max():.4f}")
     print("="*50)
 
-    if look_ahead_test:
+    if look_ahead_test and not inference_mode:
         print("\n" + "="*50)
         print("[TEST] VALIDANDO TEMPORALIDAD DE FEATURES")
         print("="*50)
-        
+
         feature_cols = [c for c in df_final.columns if c.endswith('_neutral')]
-        
+
         params = {
             'horizon': horizon,
             'rsi_period': 14,
@@ -551,9 +592,9 @@ def process_pipeline(horizon=8, d=0.4, window=500, vpt_price_d_window=168, vol_w
             is_valid = validate_feature_look_ahead(df_final, feature, params)
             if not is_valid:
                 raise ValueError(f"Feature {feature} tiene look-ahead bias")
-        
+
         print("[TEST] [OK] Todas las features pasan validación")
-    
+
     return final_dataset
 
 if __name__ == "__main__":
@@ -565,5 +606,3 @@ if __name__ == "__main__":
     # df_final = process_pipeline(horizon=8, d=0.4, window=50, vpt_price_d_window = 24, vol_window=48, timeframe='1h') #8h
     # df_final = process_pipeline(horizon=48, d=0.4, window=50, vpt_price_d_window=24, vol_window=96, timeframe='1h') #48h
     df_final = process_pipeline(horizon=8,d=0.4, window=50,vpt_price_d_window=6,vol_window=12,timeframe='4h', look_ahead_test=False) # alpha_past_neutral (Spearman: -0.0498)
-
-    

@@ -7,6 +7,7 @@ import uuid
 from typing import Optional, Dict, Any
 from . import send_get, send_post, ALLOWED_SYMBOLS
 from .market import get_ticker_price, get_contract_info
+from .account import set_leverage
 
 
 def _validate_symbol(symbol: str, verbose: bool = True) -> bool:
@@ -121,6 +122,7 @@ def place_order(
     api_key: str,
     secret_key: str,
     passphrase: str,
+    leverage: str,
     symbol: str = "cmt_btcusdt",
     position_side: str = "long",
     notional_value: float = 10.0,
@@ -140,6 +142,7 @@ def place_order(
         position_side: 'long' para compra o 'short' para venta
         notional_value: Valor nocional de la orden en USDT (ej: 10.0)
         price: Precio (0 para market orders, ignorado en órdenes de mercado)
+        leverage: Valor de leverage para este trade (ej: "1", "5", "10", "20")
         message: Mensaje explicativo de la decisión de trading (para AI log)
         locale: Idioma
         verbose: Mostrar información en consola
@@ -156,6 +159,7 @@ def place_order(
     Ejemplo:
         >>> order = place_order(
         ...     api_key, secret_key, passphrase,
+        ...     leverage="3",
         ...     symbol="cmt_btcusdt",
         ...     position_side="long",
         ...     notional_value=10.0
@@ -164,6 +168,12 @@ def place_order(
         ...     print(f"Orden ID: {order.get('order_id')}")
     """
     if not _validate_symbol(symbol, verbose):
+        return None
+        
+    # Configurar leverage para este trade
+    if not set_leverage(api_key, secret_key, passphrase, symbol, leverage, locale, verbose):
+        if verbose:
+            print("[ERROR] No se pudo configurar el leverage")
         return None
         
     if verbose:

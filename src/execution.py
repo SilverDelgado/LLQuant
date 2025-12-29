@@ -118,7 +118,7 @@ def generate_random_weights(symbols: List[str], mode: str = 'both') -> Dict[str,
     return weights
 
 
-def rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights, mode: str = 'longonly'):
+def rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights, mode: str = 'longonly', leverage: int = 1):
     """
     Rebalancea el portfolio según los pesos objetivo.
     
@@ -126,7 +126,11 @@ def rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights,
         api_key, secret_key, passphrase, locale: Credenciales de API
         target_weights: Diccionario {symbol: peso} donde la suma de valores absolutos = 1
         mode: Modo de operación ('longonly', 'shortonly', 'both')
+        leverage: Leverage fijo para todas las operaciones (por defecto 1)
     """
+    # Usar el mismo leverage para todos los símbolos
+    leverage_str = str(leverage)
+    
     print("-" * 60)
     total_equity = get_real_equity(api_key, secret_key, passphrase, locale)
     target_exposure_total = total_equity * LEVERAGE_RATIO
@@ -155,16 +159,17 @@ def rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights,
         # LÓGICA DE EJECUCIÓN SIMPLE:
         # Si delta > 0: Necesito comprar (Long)
         # Si delta < 0: Necesito vender (Short)
+        
         if delta_usdt > 0:
             action = "LONG (Aumentar Long / Reducir Short)"
-            print(f" > {symbol}: Actual={current_val:.1f} -> Target={target_value_usdt:.1f} | Delta={delta_usdt:.2f} ({action})")
-            message = f"Rebalancing portfolio: Adjusting {symbol} position from {current_val:.2f} to {target_value_usdt:.2f} USDT. Delta: +{delta_usdt:.2f} USDT. Target weight: {target_weights.get(symbol, 0.0)*100:.1f}%."
-            place_order(api_key, secret_key, passphrase, symbol, "long", abs(delta_usdt), "0", message, locale, verbose=False)
+            print(f" > {symbol}: Actual={current_val:.1f} -> Target={target_value_usdt:.1f} | Delta={delta_usdt:.2f} ({action}) | Leverage: {leverage_str}x")
+            message = f"Rebalancing portfolio: Adjusting {symbol} position from {current_val:.2f} to {target_value_usdt:.2f} USDT. Delta: +{delta_usdt:.2f} USDT. Target weight: {target_weights.get(symbol, 0.0)*100:.1f}%. Leverage: {leverage_str}x."
+            place_order(api_key, secret_key, passphrase, leverage_str, symbol, "long", abs(delta_usdt), "0", message, locale, verbose=False)
         else:
             action = "SHORT (Aumentar Short / Reducir Long)"
-            print(f" > {symbol}: Actual={current_val:.1f} -> Target={target_value_usdt:.1f} | Delta={delta_usdt:.2f} ({action})")
-            message = f"Rebalancing portfolio: Adjusting {symbol} position from {current_val:.2f} to {target_value_usdt:.2f} USDT. Delta: {delta_usdt:.2f} USDT. Target weight: {target_weights.get(symbol, 0.0)*100:.1f}%."
-            place_order(api_key, secret_key, passphrase, symbol, "short", abs(delta_usdt), "0", message, locale, verbose=False)
+            print(f" > {symbol}: Actual={current_val:.1f} -> Target={target_value_usdt:.1f} | Delta={delta_usdt:.2f} ({action}) | Leverage: {leverage_str}x")
+            message = f"Rebalancing portfolio: Adjusting {symbol} position from {current_val:.2f} to {target_value_usdt:.2f} USDT. Delta: {delta_usdt:.2f} USDT. Target weight: {target_weights.get(symbol, 0.0)*100:.1f}%. Leverage: {leverage_str}x."
+            place_order(api_key, secret_key, passphrase, leverage_str, symbol, "short", abs(delta_usdt), "0", message, locale, verbose=False)
 
 
 def close_all_positions(api_key, secret_key, passphrase, locale):

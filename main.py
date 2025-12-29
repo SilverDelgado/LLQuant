@@ -20,6 +20,9 @@ import time
 from typing import Dict, Any, Optional
 from datetime import datetime
 
+import numpy as np
+import pandas as pd
+
 # Agregar src al path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
@@ -28,6 +31,7 @@ from src.risk_manager import motor_de_riesgo
 from src.llm import get_llm_analysis
 from src.inference import generate_signals
 from src.execution import rebalance_portfolio, get_credentials, close_all_positions
+from src.black_litterman import BlackLittermanModel
 from api import ALLOWED_SYMBOLS
 
 # ======================= CONFIGURACIÓN =======================
@@ -43,9 +47,10 @@ CONFIG = {
     "symbols": ALLOWED_SYMBOLS,  # Usar todos los símbolos permitidos
     "risk_profile": "medio_riesgo",
     "rebalance_threshold": 0.02,  # 2%
-    "check_interval": 3600,  # 1 hora
+    "check_interval": 1*60*60,  # 1 hora
     "max_loops": None,  # None = infinito
     "execution_mode": "both",  # longonly | shortonly | both
+    "default_leverage": 3,  # Leverage fijo conservador por defecto
 }
 
 
@@ -129,21 +134,54 @@ def acquire_all_market_data(symbols: list) -> Dict[str, Any]:
 
 def get_initial_portfolio(market_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Fase 2: Obtener portfolio inicial del modelo ML
-    
-    TODO: Integrar con train_ml.py para obtener predicciones del modelo
+    Fase 2: Portfolio base usando el ranking cuantitativo ya generado.
     """
-    logger.info("🤖 Generando portfolio base (ML)...")
-    
-    # Placeholder - será reemplazado con modelo ML real
-    initial_portfolio = {
-        "conviction_scores": [0.75, 0.68, 0.82],
-        "base_weights": [0.40, 0.35, 0.25],
-        "confidence": 0.73
+    logger.info("🤖 Generando portfolio base (ranking cuantitativo)...")
+
+    top_picks = _extract_top_picks(market_data)
+    assets = list(market_data.keys())
+
+    if not top_picks:
+        logger.warning("Sin ranking cuantitativo; usando pesos por defecto.")
+        fallback_scores = [0.6] * max(len(assets), 3)
+        return {
+            "conviction_scores": fallback_scores,
+            "base_weights": [1 / len(fallback_scores)] * len(fallback_scores),
+            "confidence": 0.55,
+            "source": "fallback"
+        }
+
+    alphas = [p.get("alpha") for p in top_picks if p.get("alpha") is not None]
+    if not alphas:
+        logger.warning("El ranking no incluye alphas; usando scores planos.")
+        alphas = [0.0] * len(top_picks)
+
+    min_alpha, max_alpha = min(alphas), max(alphas)
+
+    def to_score(alpha: float) -> float:
+        if max_alpha == min_alpha:
+            return 0.65
+        normalized = (alpha - min_alpha) / (max_alpha - min_alpha)
+        return 0.55 + 0.45 * normalized
+
+    score_map = {p.get("ticker"): to_score(p.get("alpha", 0.0)) for p in top_picks}
+    conviction_scores = [score_map.get(sym, 0.55) for sym in assets]
+
+    total = sum(max(s, 0.0) for s in conviction_scores)
+    base_weights = [s / total if total else 0.0 for s in conviction_scores]
+
+    confidence = sum(conviction_scores) / len(conviction_scores) if conviction_scores else 0.0
+
+    portfolio = {
+        "conviction_scores": conviction_scores,
+        "base_weights": base_weights,
+        "confidence": confidence,
+        "source": "quant_signals",
+        "tickers": assets
     }
-    
-    logger.info(f"✓ Portfolio ML generado")
-    return initial_portfolio
+
+    logger.info("✓ Portfolio base derivado del modelo cuantitativo")
+    return portfolio
 
 
 def _extract_top_picks(market_data: Dict[str, Any]) -> list:
@@ -258,39 +296,101 @@ def apply_risk_controls(
 
 def optimize_with_black_litterman(
     risk_result: Dict[str, Any],
-    market_data: Dict[str, Any]
+    market_data: Dict[str, Any],
+    llm_analysis: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """
-    Fase 5: Optimización con Black-Litterman
-    
-    TODO: Integrar con black_litterman.py para optimizar pesos del portfolio
-    """
+    """Fase 5: Optimización con Black-Litterman real usando señales cuant+LLM."""
+
     logger.info("📈 Optimizando pesos (Black-Litterman)...")
-    
-    # Placeholder - será reemplazado con optimización real
-    optimized_weights = {
-        "cmt_btcusdt": 0.42,
-        "cmt_ethusdt": 0.33,
-        "cmt_solusdt": 0.25
-    }
-    
-    logger.info(f"✓ Pesos optimizados")
+
+    assets = list(market_data.keys())
+    if not assets:
+        logger.warning("Sin activos para optimizar; devolviendo pesos vacíos.")
+        return {"weights": {}, "risk_adjusted_return": 0.0, "sharpe_ratio": 0.0}
+
+    # Volatilidad y market caps proxy desde métricas estructuradas
+    vols = []
+    mcaps = []
+    for sym in assets:
+        metrics = market_data.get(sym, {}).get("metrics", {})
+        vol_pct = metrics.get("volatility_pct")
+        vol = abs(float(vol_pct)) / 100 if vol_pct is not None else 0.05
+        vols.append(max(vol, 1e-4))
+
+        mcap = metrics.get("avg_volume") or metrics.get("volume") or 1.0
+        try:
+            mcaps.append(float(mcap))
+        except Exception:
+            mcaps.append(1.0)
+
+    # Construir un returns_df sintético (cov diagonal con vols)
+    returns_df = pd.DataFrame(np.diag(vols), columns=assets)
+
+    try:
+        bl = BlackLittermanModel()
+        bl.fit(returns_df, mcaps)
+    except Exception as e:
+        logger.error(f"No se pudo ajustar Black-Litterman: {e}")
+        return {"weights": {}, "risk_adjusted_return": 0.0, "sharpe_ratio": 0.0}
+
+    top_picks = _extract_top_picks(market_data)
+    alpha_map = {str(p.get("ticker")): p.get("alpha", 0.0) for p in top_picks}
+    max_alpha = max(abs(a) for a in alpha_map.values()) if alpha_map else 0.0
+
+    conv_scores = llm_analysis.get("conviction_scores", []) if llm_analysis else []
+
+    views = {}
+    for idx, sym in enumerate(assets):
+        alpha = alpha_map.get(sym, 0.0)
+        alpha_signal = (alpha / max_alpha) if max_alpha else 0.0
+        conv = conv_scores[idx] if idx < len(conv_scores) else 0.5
+
+        expected_ret = 0.04 * alpha_signal + 0.02 * (conv - 0.5)
+        confidence = max(0.05, min(1.0, conv))
+        views[sym] = (expected_ret, confidence)
+
+    mode = CONFIG.get("execution_mode", "both")
+    mode = "both" if mode not in {"long_only", "short_only", "both"} else mode
+
+    try:
+        raw_weights = bl.predict(views, mode=mode)
+    except Exception as e:
+        logger.error(f"Error calculando pesos Black-Litterman: {e}")
+        return {"weights": {}, "risk_adjusted_return": 0.0, "sharpe_ratio": 0.0}
+
+    # Ajustar por exposición permitida
+    try:
+        exposure = float(str(risk_result.get("RESULTADO_FINAL_CAPITAL", 1.0)))
+    except Exception:
+        exposure = 1.0
+    exposure = max(0.0, min(1.0, exposure))
+
+    weights = {sym: float(w) * exposure for sym, w in raw_weights.items()}
+
+    risk_adj_return = float(np.dot(np.array(list(weights.values())), np.ones(len(weights))))
+
+    logger.info("✓ Pesos optimizados con Black-Litterman")
     return {
-        "weights": optimized_weights,
-        "risk_adjusted_return": 0.18,
-        "sharpe_ratio": 1.42
+        "weights": weights,
+        "risk_adjusted_return": risk_adj_return,
+        "sharpe_ratio": None
     }
 
 
 def execute_rebalance(
     optimized_portfolio: Dict[str, Any],
-    should_rebalance: bool
+    should_rebalance: bool,
+    leverage: int
 ) -> bool:
     """
     Fase 6: Ejecución de rebalanceo
     
     Envía órdenes al mercado basadas en los pesos optimizados.
     
+    Args:
+        optimized_portfolio: Portfolio con pesos optimizados
+        should_rebalance: Si se debe proceder con el rebalanceo
+        leverage: Leverage fijo para todas las operaciones
     """
     if not should_rebalance:
         logger.info("⏭️  Rebalanceo no necesario, esperando...")
@@ -310,7 +410,7 @@ def execute_rebalance(
         return False
 
     logger.info("🚀 Ejecutando rebalanceo real vía execution.py...")
-    rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights, mode)
+    rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights, mode, leverage)
     logger.info("✓ Rebalanceo enviado al mercado")
     return True
 
@@ -356,6 +456,7 @@ def main():
             
             # 2️⃣ Portfolio base (ML)
             base_portfolio = get_initial_portfolio(market_data)
+            logger.info(f"Base portfolio: {base_portfolio}")
             
             # 3️⃣ Análisis LLM
             llm_analysis = enhance_with_llm(market_data, base_portfolio)
@@ -364,10 +465,20 @@ def main():
             risk_result = apply_risk_controls(market_data, llm_analysis)
             
             # 5️⃣ Optimización Black-Litterman
-            optimized_portfolio = optimize_with_black_litterman(risk_result, market_data)
+            optimized_portfolio = optimize_with_black_litterman(risk_result, market_data, llm_analysis)
             
-            # 6️⃣ Ejecución
-            execute_rebalance(optimized_portfolio, llm_analysis["should_rebalance"])
+            # Mostrar pesos optimizados
+            weights = optimized_portfolio.get("weights", {})
+            logger.info("📊 Pesos optimizados (Black-Litterman):")
+            for asset, weight in weights.items():
+                logger.info(f"  {asset}: {weight:.4f}")
+            
+            # 5️⃣.5️⃣ Leverage Fijo
+            default_lev = CONFIG.get("default_leverage", 3)
+            logger.info(f"📌 Usando leverage fijo: {default_lev}x")
+            
+            # 6️⃣ Ejecución (con leverage fijo)
+            execute_rebalance(optimized_portfolio, llm_analysis["should_rebalance"], default_lev)
             
             logger.info("✓ Ciclo completado exitosamente")
             
