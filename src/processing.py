@@ -556,7 +556,7 @@ def process_pipeline(
     # Guardado opcional
     if save_file:
         os.makedirs(output_dir, exist_ok=True)
-        save_path = os.path.join(output_dir, f"training_data_{timeframe}.parquet")
+        save_path = os.path.join(output_dir, f"full_data_{timeframe}.parquet")
         final_dataset.to_parquet(save_path)
     else:
         save_path = None
@@ -599,6 +599,44 @@ def process_pipeline(
 
     return final_dataset
 
+
+def split_train_test(full_data_path, train_ratio=0.8, timeframe="4h"):
+    """Divide parquet en train test"""
+    if not os.path.exists(full_data_path):
+        print(f"[ERROR] No se encuentra {full_data_path}")
+        return
+    
+    df = pd.read_parquet(full_data_path)
+    print(f"[SPLIT] Dividiendo datos cronológicamente...")
+    print(f"[SPLIT] Total de filas: {len(df)}")
+    
+    timestamps = df.index.unique().sort_values()
+    split_idx = int(len(timestamps) * train_ratio)
+    
+    cutoff_time = timestamps[split_idx]
+    
+    df_train = df[df.index < cutoff_time]
+    df_test = df[df.index >= cutoff_time]
+    
+    output_dir = "data/processed"
+    
+    train_path = os.path.join(output_dir, f"training_data_{timeframe}.parquet")
+    test_path = os.path.join(output_dir, f"test_data_{timeframe}.parquet")
+    
+    df_train.to_parquet(train_path)
+    df_test.to_parquet(test_path)
+    
+    print(f"\n[SPLIT] Train: {len(df_train)} filas ({len(df_train.index.unique())} timestamps)")
+    print(f"[SPLIT] Train tickers: {df_train['ticker'].nunique()}")
+    print(f"[SPLIT] Guardado en: {train_path}\n")
+    
+    print(f"[SPLIT] Test:  {len(df_test)} filas ({len(df_test.index.unique())} timestamps)")
+    print(f"[SPLIT] Test tickers: {df_test['ticker'].nunique()}")
+    print(f"[SPLIT] Guardado en: {test_path}\n")
+    
+    print(f"[SPLIT] Cutoff: {cutoff_time}")
+    print("="*50)
+
 if __name__ == "__main__":
     """
     horizon: distancia al futuro que el modelo intenta adivinar
@@ -608,3 +646,6 @@ if __name__ == "__main__":
     # df_final = process_pipeline(horizon=8, d=0.4, window=50, vpt_price_d_window = 24, vol_window=48, timeframe='1h') #8h
     # df_final = process_pipeline(horizon=48, d=0.4, window=50, vpt_price_d_window=24, vol_window=96, timeframe='1h') #48h
     df_final = process_pipeline(horizon=8,d=0.4, window=50,vpt_price_d_window=6,vol_window=12,timeframe='4h', look_ahead_test=False) # alpha_past_neutral (Spearman: -0.0498)
+        
+    split_train_test(full_data_path="data/processed/full_data_4h.parquet",train_ratio=0.77,timeframe="4h")
+

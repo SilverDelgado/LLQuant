@@ -76,7 +76,7 @@ def portfolio_manager_agent(top_candidates):
     """
 
     response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
             config={
                 'response_mime_type': 'application/json'
@@ -118,7 +118,6 @@ def run_system_pipeline():
     print(f"Reasoning: {winner['reasoning']}")
 
 if __name__ == "__main__":
-    # run_system_pipeline()
-    for model in client.models.list():
-        print(model)
-        break
+    run_system_pipeline()
+    # for model in client.models.list():
+    #     print(model)

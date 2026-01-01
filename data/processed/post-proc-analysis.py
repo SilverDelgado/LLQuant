@@ -11,7 +11,7 @@ import os
 os.makedirs('data/processed/img', exist_ok=True)
 files = glob.glob("data/processed/training_data_*.parquet")
 
-df = pd.read_parquet(files[1])
+df = pd.read_parquet(files[0])
 
 def quick_validation(df):
     """

@@ -17,7 +17,7 @@ from api.trade import get_positions, place_order, close_position
 
 # --- CONFIGURACIÓN ---
 MIN_TRADE_AMOUNT = 6.0   # Mínimo en USDT para operar
-REBALANCE_THRESHOLD = 0.02 # 2% de tolerancia (evita operar por cambios pequeños)
+REBALANCE_THRESHOLD = 0.02 # 2% de tolerancia por símbolo
 LEVERAGE_RATIO = 0.50    # Usar el 50% del Equity total
 
 
@@ -118,7 +118,7 @@ def generate_random_weights(symbols: List[str], mode: str = 'both') -> Dict[str,
     return weights
 
 
-def rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights, mode: str = 'longonly', leverage: int = 1):
+def rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights, mode: str = 'longonly', leverage: int = 1, aggregate_threshold: float = None):
     """
     Rebalancea el portfolio según los pesos objetivo.
     
@@ -134,32 +134,43 @@ def rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights,
     print("-" * 60)
     total_equity = get_real_equity(api_key, secret_key, passphrase, locale)
     target_exposure_total = total_equity * LEVERAGE_RATIO
+
+    threshold = AGGREGATE_TURNOVER_THRESHOLD if aggregate_threshold is None else aggregate_threshold
     
     print(f"Equity Real: {total_equity:.2f} USDT | Objetivo Exposición: {target_exposure_total:.2f} USDT")
 
     current_positions = get_market_data(api_key, secret_key, passphrase, locale)
     
+    # Calcular deltas primero para medir el turnover total
+    deltas = {}
     for symbol in ALLOWED_SYMBOLS:
         target_value_usdt = target_exposure_total * target_weights.get(symbol, 0.0)
-        current_val = current_positions[symbol]['value']  # Ya viene con signo (- para shorts)
-        
+        current_val = current_positions[symbol]['value']
+        delta_usdt = target_value_usdt - current_val
+        if abs(delta_usdt) >= MIN_TRADE_AMOUNT:
+            deltas[symbol] = delta_usdt
+
+    total_turnover = sum(abs(v) for v in deltas.values())
+    turnover_pct = (total_turnover / total_equity) if total_equity > 0 else 1.0
+
+    if turnover_pct < threshold:
+        print(f"[SKIP] Turnover total {turnover_pct*100:.2f}% < {threshold*100:.1f}% -> no se rebalancea")
+        return False
+
+    for symbol in ALLOWED_SYMBOLS:
+        target_value_usdt = target_exposure_total * target_weights.get(symbol, 0.0)
+        current_val = current_positions[symbol]['value']
         delta_usdt = target_value_usdt - current_val
         
-        # Filtro de trade mínimo
         if abs(delta_usdt) < MIN_TRADE_AMOUNT:
             continue
             
-        # Filtro de umbral (solo si ya hay algo abierto)
         if abs(current_val) > 0:
             pct_diff = abs(delta_usdt) / abs(target_value_usdt) if target_value_usdt != 0 else 1
             if pct_diff < REBALANCE_THRESHOLD:
                 print(f"  [SKIP] {symbol}: Diferencia del {pct_diff*100:.1f}% insuficiente.")
                 continue
 
-        # LÓGICA DE EJECUCIÓN SIMPLE:
-        # Si delta > 0: Necesito comprar (Long)
-        # Si delta < 0: Necesito vender (Short)
-        
         if delta_usdt > 0:
             action = "LONG (Aumentar Long / Reducir Short)"
             print(f" > {symbol}: Actual={current_val:.1f} -> Target={target_value_usdt:.1f} | Delta={delta_usdt:.2f} ({action}) | Leverage: {leverage_str}x")
@@ -170,6 +181,8 @@ def rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights,
             print(f" > {symbol}: Actual={current_val:.1f} -> Target={target_value_usdt:.1f} | Delta={delta_usdt:.2f} ({action}) | Leverage: {leverage_str}x")
             message = f"Rebalancing portfolio: Adjusting {symbol} position from {current_val:.2f} to {target_value_usdt:.2f} USDT. Delta: {delta_usdt:.2f} USDT. Target weight: {target_weights.get(symbol, 0.0)*100:.1f}%. Leverage: {leverage_str}x."
             place_order(api_key, secret_key, passphrase, leverage_str, symbol, "short", abs(delta_usdt), "0", message, locale, verbose=False)
+
+    return True
 
 
 def close_all_positions(api_key, secret_key, passphrase, locale):

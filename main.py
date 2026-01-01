@@ -30,9 +30,10 @@ from src.data import get_structured_data, get_unstructured_data, prepare_full_pa
 from src.risk_manager import motor_de_riesgo
 from src.llm import get_llm_analysis
 from src.inference import generate_signals
-from src.execution import rebalance_portfolio, get_credentials, close_all_positions
+from src.execution import rebalance_portfolio, get_credentials, close_all_positions, get_real_equity, get_market_data
 from src.black_litterman import BlackLittermanModel
 from api import ALLOWED_SYMBOLS
+
 
 # ======================= CONFIGURACIÓN =======================
 
@@ -46,7 +47,7 @@ logger = logging.getLogger(__name__)
 CONFIG = {
     "symbols": ALLOWED_SYMBOLS,  # Usar todos los símbolos permitidos
     "risk_profile": "medio_riesgo",
-    "rebalance_threshold": 0.02,  # 2%
+    "aggregate_turnover_threshold": 0.05,  # mover cartera solo si el turnover total supera 5%
     "check_interval": 1*60*60,  # 1 hora
     "max_loops": None,  # None = infinito
     "execution_mode": "both",  # longonly | shortonly | both
@@ -410,7 +411,16 @@ def execute_rebalance(
         return False
 
     logger.info("🚀 Ejecutando rebalanceo real vía execution.py...")
-    rebalance_portfolio(api_key, secret_key, passphrase, locale, target_weights, mode, leverage)
+    rebalance_portfolio(
+        api_key,
+        secret_key,
+        passphrase,
+        locale,
+        target_weights,
+        mode,
+        leverage,
+        aggregate_threshold=CONFIG.get("aggregate_turnover_threshold")
+    )
     logger.info("✓ Rebalanceo enviado al mercado")
     return True
 
