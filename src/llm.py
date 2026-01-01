@@ -20,7 +20,7 @@ import json
 import re
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 import os
 
@@ -40,8 +40,9 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     logger.warning("⚠️  GEMINI_API_KEY no encontrada en .env")
+    client = None
 else:
-    genai.configure(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
 # Modelo a usar
 MODEL_NAME = "gemini-2.0-flash"  # Modelo rápido y económico para trading
@@ -98,21 +99,41 @@ Portfolio Base (Modelo ML):
     prompt = f"""
 === ANÁLISIS DE MERCADO Y RECOMENDACIÓN DE PORTFOLIO ===
 Timestamp: {timestamp}
-Rol: Eres un analista cuantitativo experto en criptomonedas y trading algorítmico.
+Rol: Eres un analista cuantitativo experto en criptomonedas y trading algorítmico con años de experiencia en mercados volátiles. Tu análisis combina datos técnicos, fundamentales y macroeconómicos para optimizar portfolios de trading.
 
 CONTEXTO ACTUAL DEL MERCADO:
 {assets_context}
 
 {portfolio_context}
 
-INSTRUCCIONES:
-1. Analiza el contexto técnico y fundamental de cada activo.
-2. Evalúa si el mercado recomienda un REBALANCEO del portfolio (cambios significativos en pesos).
-3. Genera Conviction Scores ajustados (0.0 a 1.0) para cada activo basados en:
-   - Tendencia técnica (RSI, precio)
-   - Noticias y contexto macro
-   - Risk/Reward ratio
-4. Proporciona una recomendación clara y concisa.
+INSTRUCCIONES DETALLADAS:
+1. **Análisis Técnico y Fundamental por Activo**:
+   - Evalúa RSI: >70 indica sobrecompra (riesgo de corrección, score más bajo); <30 indica sobreventa (oportunidad, score más alto). Entre 40-60 es neutral.
+   - Tendencia: "Rising" favorece scores altos (0.7-1.0); "Falling" reduce a 0.3-0.5; "Flat" mantiene neutral (0.5-0.6).
+   - Funding Rate: Alto (>0.0001) sugiere demanda institucional (positivo); bajo (<0.00005) indica oferta (negativo).
+   - Noticias: Positivas (adopción, regulaciones favorables) elevan scores; negativas (hackeos, bans) los reducen. Ignora ruido irrelevante.
+   - Precio: Compara con niveles clave (soporte/resistencia implícitos en tendencia).
+
+2. **Contexto Macro Amplio**:
+   - Evalúa correlaciones: BTC y ETH suelen moverse juntos (alta correlación positiva); altcoins como SOL pueden ser más volátiles e independientes.
+   - Eventos globales: Considera inflación, política monetaria (ej. tasas de interés FED), adopción institucional, regulaciones crypto, y sentiment general (bull/bear market).
+   - Volatilidad general: Si el mercado es volátil (funding rates altos, RSI extremos en múltiples activos), prioriza reducción de riesgo (scores más bajos).
+   - Impacto en portfolio: Ajusta scores para diversificación; evita concentración en activos correlacionados si hay riesgo sistémico.
+
+3. **Evaluación de Rebalanceo**:
+   - Recomienda rebalanceo si hay cambios significativos: Tendencias opuestas en >50% de activos, noticias macro disruptivas, o shifts en funding rates que alteren risk/reward.
+   - No rebalances por ruido menor; mantén estabilidad si el portfolio base es sólido.
+   - Considera el portfolio actual: Si scores ajustados difieren >20% de los iniciales en promedio, rebalancea.
+
+4. **Generación de Conviction Scores Ajustados (0.0-1.0)**:
+   - Calcula por activo: Pondera técnica (40%), fundamentales/noticias (40%), macro (20%).
+   - Ejemplos: BTC con RSI=75, tendencia "Rising", funding alto y noticias positivas → score 0.85. ETH con RSI=45, tendencia "Flat", funding bajo → score 0.55.
+   - Asegura consistencia: Scores altos para oportunidades de alto reward/bajo riesgo; bajos para alto riesgo.
+
+5. **Recomendación y Confianza**:
+   - Recommendation: Breve, accionable (ej. "Rebalancear hacia BTC y SOL por tendencias alcistas; evitar ETH por consolidación.").
+   - Confidence: Basado en calidad de datos (alta si noticias recientes y RSI claros; baja si datos limitados).
+   - Rationale: Explica scores con lógica técnica (ej. "BTC elevado por RSI y macro positiva; ETH reducido por funding bajo.").
 
 FORMATO DE RESPUESTA (JSON):
 {{
@@ -127,7 +148,7 @@ RESTRICCIONES CRÍTICAS:
 - Los conviction scores deben estar entre 0.0 y 1.0
 - Debe haber un score por cada activo mencionado
 - Confidence debe ser un número único entre 0.0 y 1.0
-- Si no hay suficiente información, usa valores por defecto conservadores
+- Si no hay suficiente información, usa valores por defecto conservadores (0.5 para scores, 0.5 para confidence)
 - NO incluyas comentarios adicionales fuera del JSON
 """
     
@@ -257,19 +278,19 @@ def get_llm_analysis(
         logger.info("📡 Llamando a Gemini...")
         
         # Llamar a Gemini
-        model = genai.GenerativeModel(MODEL_NAME)
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=temperature,
-                max_output_tokens=max_tokens,
-            ),
-            safety_settings=[
-                {
-                    "category": "HARM_CATEGORY_DANGEROUS",
-                    "threshold": "BLOCK_NONE",
-                },
-            ]
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+            config={
+                "temperature": temperature,
+                "max_output_tokens": max_tokens,
+                "safety_settings": [
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_NONE",
+                    },
+                ]
+            }
         )
         
         # Extraer texto de la respuesta
