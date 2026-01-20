@@ -18,8 +18,8 @@ def quick_validation(df):
     Hacemos 3 checks:
         Alpha Autocorrelation (Memoria): El valor de mi Target de HOY se parece sospechosamente al de AYER? Debe ser 0: 
         Si tu Target tiene memoria (ej: 0.9), significa que no estás prediciendo un cambio de precio, estás prediciendo una tendencia que ya existe.
-        < 0.05: Perfecto. El movimiento es independiente.
-        > 0.10: Peligro. Tu target está sucio.
+        < 0.05: Perfecto. movimiento independiente.
+        > 0.10: Peligro. target sucio.
 
         Variation de Features:
         Mide si los indicadores cambian entre las monedas en un mismo momento.
@@ -34,18 +34,18 @@ def quick_validation(df):
     """
     print("=== VALIDACIÓN RÁPIDA ===")
     
-    # 1. Alpha no debe tener autocorrelación (si no, hay leak)
+    #alpha no debe tener autocorrelación (!= hay leak)
     alpha_ac = df['TARGET_ALPHA'].autocorr(lag=1)
     print(f"Alpha Autocorr(lag=1): {alpha_ac:.4f} (debe ser < 0.05)")
     if abs(alpha_ac) > 0.05:
         print("[WARNING]: Alpha tiene memoria temporal, posible lookahead bias")
     
-    # 2. Features deben variar entre tickers (si no, neutralización falló)
+    # features deben variar entre tickers (!= neutralización falló)
     feature_cols = [c for c in df.columns if c.endswith('_neutral')]
     variation = df.groupby('timestamp')[feature_cols].std().mean()
     print(f"\nVariation media de features: {variation.mean():.4f} (debe ser > 0.1)")
     
-    # 3. Alpha debe ser estacionario (ADF test)
+    # alpha debe ser estacionario (ADF test)
     adf_stat, p_value, _, _, _, _ = adfuller(df['TARGET_ALPHA'].dropna())
     print(f"\nADF p-value: {p_value:.6f} (debe ser < 0.05)")
     if p_value < 0.05:
@@ -59,8 +59,7 @@ def quick_validation(df):
 """
 Spearman > 0.03: Feature tiene señal débil pero usable
 Spearman > 0.05: Feature fuerte
-Spearman < 0.01: Basura, eliminar en Fase 2
-Signo: Debe ser lógico (ej. rsi_neutral positivo = overbought = Alpha negativo)
+Spearman < 0.01: Basura, delete een Fase 2
 """
 
 def analyze_feature_signal(df):
@@ -82,7 +81,6 @@ def analyze_feature_signal(df):
     correlations = {}
     
     for col in feature_cols:
-        # Correlación normal (screening rápido)
         corr_pearson = df[col].corr(df['TARGET_ALPHA'])
         corr_spearman = spearmanr(df[col], df['TARGET_ALPHA'])[0]
         
@@ -93,7 +91,6 @@ def analyze_feature_signal(df):
         
         print(f"{col:20s} | Pearson: {corr_pearson:7.4f} | Spearman: {corr_spearman:7.4f}")
     
-    # Identificar mejores features
     best_spearman = max(correlations.items(), key=lambda x: abs(x[1]['spearman']))
     print(f"[FEATURES] Mejor feature: {best_spearman[0]} (Spearman: {best_spearman[1]['spearman']:.4f})")
     
@@ -122,11 +119,10 @@ def temporal_stability(df, window=1000):
     print("\n=== ESTABILIDAD TEMPORAL (Rolling RankIC) ===")
     feature_cols = [c for c in df.columns if c.endswith('_neutral')]
     
-    # Tomar un feature como ejemplo (el mejor según análisis previo)
-    best_feature = 'zscore_neutral'  # Cambia según tu mejor feature
+    best_feature = 'zscore_neutral' #cambiar segun nuestros tests (elegir el feature q es mejor)
     
     rolling_rankic = []
-    for i in range(window, len(df), window//4):  # Ventanas overlap
+    for i in range(window, len(df), window//4):
         subset = df.iloc[i-window:i]
         if len(subset) < 100:
             continue
@@ -162,14 +158,12 @@ def analyze_alpha_distribution(df):
     
     plt.figure(figsize=(12, 5))
     
-    # Histograma
     plt.subplot(1, 2, 1)
     df['TARGET_ALPHA'].hist(bins=50, alpha=0.7)
     plt.title('Distribución Alpha')
     plt.xlabel('Alpha')
     plt.ylabel('Frecuencia')
-    
-    # QQ-Plot (para ver si es normal)
+
     plt.subplot(1, 2, 2)
     probplot(df['TARGET_ALPHA'], dist="norm", plot=plt)
     plt.title('QQ-Plot vs Normal')
@@ -179,8 +173,7 @@ def analyze_alpha_distribution(df):
     plt.close()
     print("[IMG] Gráfico guardado: alpha_distribution.png")
     
-    # Estadísticas
-    print(f"\nAlpha Stats:")
+    print(f"Alpha Stats:")
     print(f"  Mean:  {df['TARGET_ALPHA'].mean():.6f}")
     print(f"  Std:   {df['TARGET_ALPHA'].std():.4f}")
     print(f"  Skew:  {df['TARGET_ALPHA'].skew():.3f}")
@@ -198,23 +191,18 @@ Count similar: No debe haber tickers con <50% de datos
 """
 
 def alpha_by_ticker(df):
-    """
-    verifica que no hayamos creado un monstruo que solo sabe operar x activo, Mean/Std: Deben ser parecidos entre monedas.
-    """
-    print("\n=== ALPHA POR TICKER ===")
+    print("=== ALPHA POR TICKER ===")
     
     stats = df.groupby('ticker')['TARGET_ALPHA'].agg(['mean', 'std', 'count'])
     stats = stats.sort_values('std', ascending=False)
     
     print(stats)
     
-    # Verificar que todos contribuyen
     if stats['count'].std() > 10:  # Si hay mucha diferencia en # de muestras
         print("[WARN]: Algunos tickers tienen muchos menos datos")
     
-    # Test de homogeneidad: el Alpha debe ser similar entre tickers
-    # (si no, tu modelo aprenderá solo a operar 1-2 activos)
-    print(f"\nHomogeneidad (std de medias): {stats['mean'].std():.4f}")
+    # Test de homogeneidad: alpha debe ser similar entre tickers
+    print(f"Homogeneidad (std de medias): {stats['mean'].std():.4f}")
     if stats['mean'].std() > 0.005:
         print("[WARN]: Alpha no es homogéneo entre tickers")
 
@@ -223,10 +211,6 @@ def alpha_by_ticker(df):
 
 def feature_correlation_heatmap(df):
     """
-    Compara Features entre sí, NO con el objetivo, queremos opiniones distintas.
-
-    Si tienes RSI y Stoch y su correlación es 0.95, significa que dicen exactamente lo mismo.
-
     < 0.70: Indicadores independientes. Bien.
      > 0.85: Redundancia crítica. Debes elegir uno de los dos y borrar el otro antes de entrenar.
     """
@@ -243,7 +227,7 @@ def feature_correlation_heatmap(df):
     plt.close()
     print("[IMG] Gráfico guardado: feature_correlation.png")
     
-    # Identificar pares muy correlacionados (>0.8)
+    # identifyy pares muy correlacionados (>0.8)
     high_corr = []
     for i in range(len(corr_matrix.columns)):
         for j in range(i+1, len(corr_matrix.columns)):

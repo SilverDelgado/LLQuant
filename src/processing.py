@@ -1,4 +1,3 @@
-"""Pipeline Fase 1: FracDiff -> Features Neutras -> Alpha Target"""
 import importlib.util
 import pandas as pd
 import numpy as np
@@ -15,13 +14,12 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 
-# FRACDIFF  ====================
+# FRACDIFF
 
 def fracdiff_fixed_window(series, d=0.4, window=500):
     """
     Fixed-Window Fractional Differenciación con ventana fija para calcular este valor sin look ahead bias.
     para calcular el valor de HOY, la fórmula matemática necesita multiplicar y sumar los precios de las últimas x velas(window)
-
     """
     if len(series) < window:
         return pd.Series(np.nan, index=series.index)
@@ -47,7 +45,6 @@ def fracdiff_fixed_window(series, d=0.4, window=500):
 # INDICADORES MANUALES sobre price_diferenciado fraccionalmente ====================
 
 def rsi_price_d(price_d, period=14):
-    """RSI calculado SOBRE la serie diferenciada"""
     delta = price_d.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
@@ -57,7 +54,6 @@ def rsi_price_d(price_d, period=14):
     return 100 - (100 / (1 + rs))
 
 def bollinger_features(price_d, period=20, std=2):
-    """Retorna Z-Score y Band Width sobre price_d"""
     mid = price_d.rolling(period).mean()
     std_dev = price_d.rolling(period).std()
     zscore = (price_d - mid) / std_dev
@@ -65,23 +61,19 @@ def bollinger_features(price_d, period=20, std=2):
     return zscore, width
 
 def atr_price_d(price_d, period=14):
-    """ATR simplificado para price_d (usa diferencia ventana 2)"""
     high_low = price_d.rolling(2).max() - price_d.rolling(2).min()
     return high_low.rolling(period).mean()
 
 def volume_imbalance(volume, price_d, period=20):
-    """Ratio volumen en velas positivas vs negativas"""
     positive_vol = volume.where(price_d.diff() > 0, 0).rolling(period).sum()
     negative_vol = volume.where(price_d.diff() < 0, 0).rolling(period).sum()
     return (positive_vol - negative_vol) / (positive_vol + negative_vol + 1e-9)
 
 def vpt_price_d(volume, price_d, window=168):
-    """Volume Price Trend (Rolling) para mantener estacionariedad"""
     vpt_raw = (volume * price_d.diff() / price_d)
     return vpt_raw.rolling(window).sum()
 
 def stoch_price_d(price_d, k=14, d=3):
-    """Stochastic Oscillator sobre price_d"""
     low_min = price_d.rolling(k).min()
     high_max = price_d.rolling(k).max()
     k_line = 100 * (price_d - low_min) / (high_max - low_min + 1e-9)
@@ -90,7 +82,6 @@ def stoch_price_d(price_d, k=14, d=3):
 # LIMPIEZA Y ALINEACIÓN ====================
 
 def clean_and_align_data(input_dir, timeframe):
-    """Carga, pivotea y asegura alineación temporal perfecta"""
     print(f"[DATA] Cargando y alineando archivos de tf: {timeframe}... ")
     all_files = glob.glob(os.path.join(input_dir, "cmt_*.parquet")) 
     
@@ -109,7 +100,7 @@ def clean_and_align_data(input_dir, timeframe):
         df['ticker'] = ticker
         all_data.append(df)
     
-    # Concatenar
+    # concat
     full_df = pd.concat(all_data)
     df_pivot = full_df.pivot_table( #creamos tabla ancha (btc | eth | xxx) (pivotar)
         index=full_df.index, 
@@ -134,13 +125,9 @@ def clean_and_align_data(input_dir, timeframe):
     
     return df_stacked
 
-# FEATURE ENGINEERING ====================
+# FEATURE ENGINEERING
 
 def add_technical_indicators(df, d=0.4, window=500, vpt_price_d_window=168):
-    """
-    Calcula TODOS los indicadores SOBRE price_d, luego neutraliza (comparando monedas entre si)
-    Neutralización: No queremos saber el valor absoluto de cierto indicador para un precio, sino saber que este valor es mejor que los demás (cross sectional)
-    """
     print(f"[FEATURES] Calculando indicadores sobre FracDiff (d={d})...")
     
     processed = []
@@ -266,44 +253,22 @@ def calculate_target_alpha(df, horizon=8, vol_window=168, timeframe='1h'):
 
 def add_alpha_lag_features(df, horizon=24):
     """
-    Usa Retorno Pasado Realizado como feature
-    El lag debe ser el Alpha de [t-horizon, t], que está 100% disponible en t
-    Añade lag del Alpha para modelar la autocorrelación NEGATIVA (reversión a la media).
+    Retorno Pasado Realizado como feature
+    El lag debe ser el Alpha de [t-horizon, t], que está SIEMPRE disponible en t
+    ñlo que ghace es que añade lag del Alpha para modelar la autocorrelación NEGATIVA === mean reversion.
 
-    El Alpha calculado muestra una autocorrelación de -0.13 (lag=1). Esto NO es un bug, 
-    es una PROPIEDAD DEL MERCADO: los activos que se desvían fuertemente del promedio 
-    en un período tienden a revertir hacia la media en el siguiente período.
-    
-    Si SOL superó al mercado en +5% en las últimas 4 horas, las siguientes 4 horas es 
-    estadísticamente más probable que SOL *underperform* para compensar esa desviación.
-    Esto es "reversión a la media" o "mean reversion".
-    
-    El lag feature le permite al modelo aprender.
-    
-    IMPORTANTE:
-    El lag DEBE ser neutralizado cross-sectional (alpha_lag1_neutral), 
-    de lo contrario el modelo aprendería "comprar perdedores" en vez de 
-    "comprar activos que revierten desde extremos relativos".
+    El lag DEBE ser neutralizado cross-sectional (alpha_lag1_neutral)
     """
  
     print(f"[FEATURES] Añadiendo Alpha Pasado (Reversión a la Media)...")
     
-    # 1. Retorno PASADO (24h hacia atrás) [SAFE]
     past_return = df.groupby('ticker')['Close'].pct_change(periods=horizon)
     
-    # 2. Neutralización cross-sectional del PASADO (Centrar en 0)
     market_mean_past = past_return.groupby(df.index).transform('mean')
     alpha_past_raw = past_return - market_mean_past
     
-    # 3. Vol scaling del PASADO (Ajustar por riesgo individual)
     vol_past = df.groupby('ticker')['Close'].pct_change().rolling(horizon).std() * np.sqrt(horizon)
     alpha_past_risk_adj = alpha_past_raw / (vol_past + 1e-9)
-    
-    # --- CAMBIO AQUÍ ---
-    # 4. Z-Score Cross-Sectional Final
-    # En lugar de usar una referencia estática (iloc[:1000]), forzamos a que
-    # EN CADA HORA, la distribución de los features sea Mean=0, Std=1.
-    # Esto hace que el modelo sea robusto a cambios de régimen de volatilidad.
     
     cs_mean = alpha_past_risk_adj.groupby(df.index).transform('mean')
     cs_std = alpha_past_risk_adj.groupby(df.index).transform('std')
@@ -315,7 +280,7 @@ def add_alpha_lag_features(df, horizon=24):
     
     return df
 
-# LOOK AHEAD BIAS CHECK ==========================================
+# LOOK AHEAD BIAS CHECK
 
 def validate_feature_look_ahead(df, feature_name, params, samples=10):
     print(f"[TEST] Validando temporalidad de '{feature_name}'...")
@@ -352,13 +317,10 @@ def validate_feature_look_ahead(df, feature_name, params, samples=10):
 
 def run_mutation_check_for_alpha(df, feature_name, horizon=8):
     """
-    Sub-test específico para Alpha Past.
-    Modifica el futuro y verifica que el pasado no cambie.
+    modifica el futuro y verifica que el pasado no cambie.
     """
     print(f"---> [SPECIAL TEST] Ejecutando Mutación para {feature_name}...")
     
-    # 1. Setup: Copia ligera para no romper nada
-    # Cogemos un subconjunto para ir rápido
     tickers = df['ticker'].unique()[:3] 
     df_test = df[df['ticker'].isin(tickers)].copy().sort_index()
     
@@ -485,28 +447,9 @@ def recalcula_con_funciones_originales(df, timestamp, feature_name, ticker, para
     return base_value
 
 
-# PIPELINE PRINCIPAL ====================
+# PIPELINE
 
-def process_pipeline(
-    horizon=8,
-    d=0.4,
-    window=500,
-    vpt_price_d_window=168,
-    vol_window=168,
-    timeframe='1h',
-    look_ahead_test=False,
-    df_base=None,
-    save_file=True,
-    inference_mode=False,
-):
-    """Ejecuta pipeline completo.
-
-    Soporta dos modos de entrada:
-    - Sin `df_base`: carga y limpia datos desde `data/raw` (modo entrenamiento).
-    - Con `df_base`: usa el DataFrame entregado en memoria (modo inferencia/rápido).
-
-    Si `inference_mode=True`, NO calcula `TARGET_ALPHA` ni features dependientes de ella.
-    """
+def process_pipeline(horizon=8,d=0.4,window=500,vpt_price_d_window=168,vol_window=168,timeframe='1h',look_ahead_test=False,df_base=None,save_file=True,inference_mode=False):
     input_dir = "data/raw"
     output_dir = "data/processed"
     print(f"[PROCESSING DATA] " + "="*50)
@@ -515,7 +458,7 @@ def process_pipeline(
         df_clean = clean_and_align_data(input_dir, timeframe=timeframe)
     else:
         print(f"[INFO] usando df_base en memoria -> output_dir:{output_dir}")
-        # Asumimos que `df_base` ya viene con índices limpios y alineados (por símbolo)
+        #df_base viene con idx limpios y alineados
         df_clean = df_base
 
     print(f"[INFO] Datos limpios: {len(df_clean)} filas")

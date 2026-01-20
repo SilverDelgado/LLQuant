@@ -1,24 +1,7 @@
 """
 WEEX Data Module - Obtención y procesamiento de datos del mercado
-
-Este módulo proporciona funciones para obtener y procesar datos estructurados 
-y no estructurados de la API de WEEX, incluyendo:
-
-- Datos OHLCV (Open, High, Low, Close, Volume) de múltiples temporalidades
-- Indicadores técnicos: RSI, MACD, Medias Móviles
-- Métricas fundamentales del mercado
-- Funding rates
-- Datos de operaciones y liquidez
-
-Funciones principales:
     - get_structured_data(): Obtiene OHLCV e indicadores técnicos
     - get_unstructured_data(): Obtiene funding rates y datos adicionales
-
-Uso:
-    from data import get_structured_data, get_unstructured_data
-    
-    structured = get_structured_data("cmt_btcusdt")
-    unstructured = get_unstructured_data("cmt_btcusdt")
 """
 
 from typing import Dict, Any, List, Optional, Tuple
@@ -52,7 +35,7 @@ from utils import (
 )
 
 
-# ======================== MAPEO DE SÍMBOLOS A NOMBRES ========================
+# ======================== MAPEO DE SÍMBOLOS A NOMBRES
 
 SYMBOL_TO_NAME = {
     "cmt_btcusdt": "Bitcoin",
@@ -68,7 +51,7 @@ SYMBOL_TO_NAME = {
 # Cache simple en memoria para minimizar llamadas a la API
 _CANDLES_CACHE: Dict[Tuple[str, str, int], List[list]] = {}
 
-# ======================== FUNCIÓN PRINCIPAL: DATOS ESTRUCTURADOS ========================
+# ======================== FUNCIÓN PRINCIPAL: DATOS ESTRUCTURADOS
 
 def get_structured_data(
     symbol: str = "cmt_btcusdt",
@@ -79,61 +62,11 @@ def get_structured_data(
     verbose: bool = False
 ) -> Dict[str, Any]:
     """
-    Obtiene datos OHLCV de múltiples temporalidades y calcula indicadores técnicos.
-    
-    Esta función recopila:
-    - Datos OHLCV (Open, High, Low, Close, Volume) de varias temporalidades
-    - Indicadores técnicos: RSI, MACD, Medias Móviles (SMA, EMA)
-    - Bandas de Bollinger
-    - Métricas fundamentales: volatilidad, cambio de precio, volumen
-    
-    Args:
-        symbol: Símbolo del activo (ej: "cmt_btcusdt")
-        api_key: Clave de API (opcional, se obtiene de env si no se proporciona)
-        secret_key: Clave secreta (opcional)
-        passphrase: Contraseña (opcional)
-        locale: Idioma (opcional, por defecto "en-US")
-        verbose: Mostrar información detallada en consola
-    
-    Returns:
-        Diccionario con estructura:
-        {
-            "symbol": str,
-            "timestamp": int,
-            "current_price": float,
-            "timeframes": {
-                "1m": {...},  # Datos de 1 minuto
-                "5m": {...},  # Datos de 5 minutos
-                "15m": {...}, # Datos de 15 minutos
-                "1h": {...},  # Datos de 1 hora
-                "4h": {...},  # Datos de 4 horas
-                "1d": {...}   # Datos de 1 día
-            },
-            "indicators": {
-                "rsi_14": float,
-                "macd": {...},
-                "sma_20": float,
-                "sma_50": float,
-                "sma_200": float,
-                "ema_12": float,
-                "ema_26": float,
-                "bollinger": {...}
-            },
-            "metrics": {
-                "volatility_pct": float,
-                "price_change_pct": float,
-                "volume": float,
-                ...
-            }
-        }
-    
-    Ejemplo:
         >>> data = get_structured_data("cmt_btcusdt", verbose=True)
         >>> print(f"Precio: ${data['current_price']:,.2f}")
         >>> print(f"RSI: {data['indicators']['rsi_14']:.2f}")
         >>> print(f"Volatilidad: {data['metrics']['volatility_pct']:.2f}%")
     """
-    # Obtener credenciales de variables de entorno si no se proporcionan
     if api_key is None:
         api_key = _env("API_Key", "")
     if secret_key is None:
@@ -148,7 +81,6 @@ def get_structured_data(
         print(f"OBTENCIÓN DE DATOS ESTRUCTURADOS: {symbol}")
         print(f"{'='*70}\n")
     
-    # Estructura de resultado
     result = {
         "symbol": symbol,
         "timestamp": int(datetime.now().timestamp() * 1000),
@@ -156,12 +88,11 @@ def get_structured_data(
         "timeframes": {},
         "indicators": {},
         "metrics": {},
-        "llm_context": {},  # Nuevo: contexto semántico para LLM
+        "llm_context": {},
         "errors": []
     }
     
     try:
-        # 1. Obtener precio actual
         if verbose:
             print("[1/3] Obteniendo precio actual...")
         
@@ -174,7 +105,6 @@ def get_structured_data(
         
         result["current_price"] = current_price
         
-        # 2. Obtener datos OHLCV de múltiples temporalidades
         if verbose:
             print("\n[2/3] Obteniendo datos OHLCV de múltiples temporalidades...")
         
@@ -187,7 +117,6 @@ def get_structured_data(
             "1d": 600    # 300 velas de 1 día
         }
         
-        # Recopilar datos de cada temporalidad
         for timeframe, limit in timeframes.items():
             if verbose:
                 print(f"\n  - Temporalidad {timeframe}...")
@@ -202,7 +131,6 @@ def get_structured_data(
             )
             
             if candles and len(candles) > 0:
-                # Guardar datos crudos
                 result["timeframes"][timeframe] = {
                     "candles": candles,
                     "count": len(candles),
@@ -216,11 +144,8 @@ def get_structured_data(
                     }
                 }
                 
-                # Calcular métricas específicas de esta temporalidad
                 metrics = calculate_metrics(candles)
                 result["timeframes"][timeframe]["metrics"] = metrics
-                
-                # NUEVO: Análisis semántico para cada temporalidad
                 semantic_analysis = analyze_timeframe_semantic(candles, timeframe)
                 result["timeframes"][timeframe]["llm_summary"] = semantic_analysis["summary"]
                 result["timeframes"][timeframe]["semantic"] = semantic_analysis
@@ -229,11 +154,11 @@ def get_structured_data(
             else:
                 result["errors"].append(f"No se pudieron obtener datos para {timeframe}")
         
-        # 3. Calcular indicadores técnicos (usando datos de 1h como referencia)
+        #indicadores técnicos (usando datos de 1h como referencia)
         if verbose:
             print("\n[3/3] Calculando indicadores técnicos y análisis semántico...")
         
-        # Usar datos de 1 hora para indicadores principales
+        # datos de 1 hora para indicadores principales
         if "1h" in result["timeframes"] and result["timeframes"]["1h"]["candles"]:
             candles_1h = result["timeframes"]["1h"]["candles"]
             closes = [float(c[4]) for c in candles_1h]

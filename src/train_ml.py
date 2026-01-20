@@ -1,13 +1,3 @@
-"""archivo para entrenar el modelo XGBOOST de ML con cross sectional regression
-    debe recibir una matriz donde:
-        Las filas son cada activo en un momento determinado
-        Los features son los indicadores tecnicos calculados T
-        El objetivo es el Alpha Relativo que ese activo tuvo en T+1
-        
-        Entrenamiento XGBoost con RankIC
-
-        """
-
 import pandas as pd
 import numpy as np
 import xgboost as xgb
@@ -17,12 +7,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 FEATURES = [
-    'alpha_past_neutral',  # (-0.05)
-    'vpt_neutral',         # (-0.03)
-    'zscore_neutral',      # (+0.02)
-    'rsi_neutral',         # (+0.018)
-    'atr_neutral',         # (+0.016)
-    'ret_vol_ratio_neutral' # (+0.018)
+    'alpha_past_neutral',
+    'vpt_neutral',
+    'zscore_neutral',
+    'rsi_neutral',
+    'atr_neutral',
+    'ret_vol_ratio_neutral'
 ]
 
 
@@ -31,24 +21,19 @@ def train_alpha_model():
     print("ENTRENAMIENTO XGBOOST")
     print("="*60)
     
-    # Cargar datos
     df = pd.read_parquet("data/processed/training_data_4h.parquet")
     print(f"[INFO] Datos cargados: {df.shape}")
     
-    # Features y target
     feature_cols = [c for c in df.columns if c.endswith('_neutral')]
     print(f"[INFO] Features: {len(feature_cols)} -> {feature_cols}")
     print(f"[INFO] Selected features: {FEATURES}")
     X = df[FEATURES]
     y = df['TARGET_ALPHA']
     
-    # TimeSeriesSplit (NO shuffle)
     tscv = TimeSeriesSplit(n_splits=5)
     
-    # Métricas
     rankics = []
     
-    # Modelo
     model = xgb.XGBRegressor(
         max_depth=4,
         learning_rate=0.05,
@@ -56,8 +41,8 @@ def train_alpha_model():
         subsample=0.8,
         colsample_bytree=0.8,
         objective='reg:squarederror',
-        reg_lambda=1.0,  # L2 regularización
-        reg_alpha=0.0,   # L1 regularización,
+        reg_lambda=1.0,
+        reg_alpha=0.0,
         early_stopping_rounds=50,
         n_jobs=-1,
         random_state=13
@@ -70,17 +55,14 @@ def train_alpha_model():
         X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
         y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
         
-        # Entrenar
         model.fit(
             X_train, y_train,
             eval_set=[(X_val, y_val)],
             verbose=False
         )
         
-        # Predicciones
         pred_val = model.predict(X_val)
         
-        # RankIC cross-sectional
         val_data = df.iloc[val_idx].copy()
         val_data['pred'] = pred_val
         
@@ -98,7 +80,6 @@ def train_alpha_model():
     print(f"[RESULTS] CONSISTENCIA: {np.mean([r > 0 for r in rankics]):.1%}")
     print("="*60)
     
-    # Guardar modelo
     model.get_booster().save_model("data/models/alpha_xgboost.json")
     print("[OK] Modelo guardado en: data/models/alpha_xgboost.json")
     
