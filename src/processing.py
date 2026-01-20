@@ -457,11 +457,13 @@ def process_pipeline(horizon=8,d=0.4,window=500,vpt_price_d_window=168,vol_windo
         print(f"[INFO] input_dir:{input_dir} -> output_dir:{output_dir} -- [OK]")
         df_clean = clean_and_align_data(input_dir, timeframe=timeframe)
     else:
-        print(f"[INFO] usando df_base en memoria -> output_dir:{output_dir}")
-        #df_base viene con idx limpios y alineados
+        print(f"[INFO] usando df_base en memoria (no se lee de disco) -> output_dir:{output_dir}")
+        # Asumimos que `df_base` ya viene con índices limpios y alineados (por símbolo)
         df_clean = df_base
 
     print(f"[INFO] Datos limpios: {len(df_clean)} filas")
+    if len(df_clean) == 0:
+        raise ValueError("df_base está vacío; no hay velas para procesar (revisa get_candles/limit)")
 
     df_features = add_technical_indicators(
         df_clean,

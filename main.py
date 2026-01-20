@@ -58,7 +58,7 @@ def acquire_all_market_data(symbols: list) -> Dict[str, Any]:
             window=50,
             vpt_price_d_window=6,
             vol_window=12,
-            limit=600,
+            limit=300,
             verbose=False,
             inference_mode=True
         )
